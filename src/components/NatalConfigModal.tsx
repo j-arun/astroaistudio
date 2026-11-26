@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Cpu, Globe, RefreshCw, Trash2, X } from 'lucide-react';
+import { CheckCircle2, Cpu, Globe, RefreshCw, Trash2, X, Zap } from 'lucide-react';
 import { AstroProfile, LlmProvider, StudioApiConfig } from '../types/astro';
 import { isValidPersonId } from '../data/sampleProfiles';
 
@@ -56,12 +56,19 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
   const [llmProvider, setLlmProvider] = useState<LlmProvider>(apiConfig.llmProvider || 'gemini');
   const [geminiModel, setGeminiModel] = useState(apiConfig.geminiModel || 'gemini-4-hydrogen');
   const [fableEndpointUrl, setFableEndpointUrl] = useState(apiConfig.fableEndpointUrl || '');
-  const [fableModel, setFableModel] = useState(apiConfig.fableModel || 'fable-astro-1');
+  const [fableModel, setFableModel] = useState(apiConfig.fableModel || '');
   const [fableApiKey, setFableApiKey] = useState(apiConfig.fableApiKey || '');
 
   const [isFetchingNatal, setIsFetchingNatal] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [fetchStatus, setFetchStatus] = useState<string | null>(null);
+
+  const [testingProvider, setTestingProvider] = useState<LlmProvider | null>(null);
+  const [adapterTestResult, setAdapterTestResult] = useState<{
+    ok: boolean;
+    provider: LlmProvider;
+    message: string;
+  } | null>(null);
 
   if (!isOpen) return null;
 
@@ -84,7 +91,7 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
     llmProvider,
     geminiModel: geminiModel.trim() || 'gemini-4-hydrogen',
     fableEndpointUrl: fableEndpointUrl.trim(),
-    fableModel: fableModel.trim() || 'fable-astro-1',
+    fableModel: fableModel.trim(),
     fableApiKey: fableApiKey.trim(),
   });
 
@@ -128,6 +135,42 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
       setFetchError(err instanceof Error ? err.message : 'Unable to reach Natal API.');
     } finally {
       setIsFetchingNatal(false);
+    }
+  };
+
+  const handleTestAdapter = async (target: LlmProvider) => {
+    setTestingProvider(target);
+    setAdapterTestResult(null);
+
+    try {
+      const res = await fetch('/api/astro/test-adapter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: target,
+          geminiModel: geminiModel.trim() || 'gemini-4-hydrogen',
+          fableEndpointUrl: fableEndpointUrl.trim(),
+          fableModel: fableModel.trim(),
+          fableApiKey: fableApiKey.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || `${target} adapter test failed.`);
+      }
+      setAdapterTestResult({
+        ok: true,
+        provider: target,
+        message: `Connected (${data.model}) in ${data.latencyMs}ms · Reply: "${data.reply}"`,
+      });
+    } catch (err: unknown) {
+      setAdapterTestResult({
+        ok: false,
+        provider: target,
+        message: err instanceof Error ? err.message : `${target} adapter test failed.`,
+      });
+    } finally {
+      setTestingProvider(null);
     }
   };
 
@@ -439,26 +482,49 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
 
               {llmProvider === 'gemini' ? (
                 <div className="bg-[#111318] border border-[#262A34] rounded-xl p-4 space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="block text-xs font-medium text-[#8E95A5]">
                       Gemini Model
                     </label>
-                    <select
-                      value={geminiModel}
-                      onChange={(e) => setGeminiModel(e.target.value)}
-                      className="w-full bg-[#181B22] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs font-mono text-[#EDEFF5] outline-none"
+                    <button
+                      type="button"
+                      disabled={testingProvider !== null}
+                      onClick={() => handleTestAdapter('gemini')}
+                      className="px-3 py-1.5 rounded-md bg-[#D4A853] hover:bg-[#DFB96B] disabled:opacity-50 text-[#111318] text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
                     >
-                      <option value="gemini-4-hydrogen">gemini-4-hydrogen (Fast Reasoning)</option>
-                      <option value="gemini-4-neon">gemini-4-neon (Complex Chart Synthesis)</option>
-                      <option value="gemini-4-carbon">gemini-4-carbon (Deep Reasoning)</option>
-                    </select>
+                      <Zap className={`w-3.5 h-3.5 ${testingProvider === 'gemini' ? 'animate-pulse' : ''}`} />
+                      <span>{testingProvider === 'gemini' ? 'Testing Gemini...' : 'Test Gemini Adapter'}</span>
+                    </button>
                   </div>
+                  <select
+                    value={geminiModel}
+                    onChange={(e) => setGeminiModel(e.target.value)}
+                    className="w-full bg-[#181B22] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#EDEFF5] outline-none"
+                  >
+                    <option value="gemini-4-hydrogen">gemini-4-hydrogen (Fast Reasoning)</option>
+                    <option value="gemini-4-neon">gemini-4-neon (Complex Synthesis)</option>
+                    <option value="gemini-4-carbon">gemini-4-carbon (Deep Reasoning)</option>
+                  </select>
                   <p className="text-[11px] text-[#8E95A5]">
                     Credentials are handled automatically by the server environment.
                   </p>
                 </div>
               ) : (
                 <div className="bg-[#111318] border border-[#262A34] rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-[#EDEFF5]">
+                      Fable OpenAI-Compatible Endpoint
+                    </span>
+                    <button
+                      type="button"
+                      disabled={testingProvider !== null}
+                      onClick={() => handleTestAdapter('fable')}
+                      className="px-3 py-1.5 rounded-md bg-[#D4A853] hover:bg-[#DFB96B] disabled:opacity-50 text-[#111318] text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+                    >
+                      <Zap className={`w-3.5 h-3.5 ${testingProvider === 'fable' ? 'animate-pulse' : ''}`} />
+                      <span>{testingProvider === 'fable' ? 'Testing Fable...' : 'Test Fable Adapter'}</span>
+                    </button>
+                  </div>
                   <div>
                     <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
                       Fable Endpoint URL
@@ -468,20 +534,20 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                       value={fableEndpointUrl}
                       onChange={(e) => setFableEndpointUrl(e.target.value)}
                       placeholder="https://your-fable-host/v1/chat/completions"
-                      className="w-full bg-[#181B22] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs font-mono text-[#EDEFF5] placeholder-[#555C6E] outline-none"
+                      className="w-full bg-[#181B22] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#EDEFF5] placeholder-[#555C6E] outline-none"
                     />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
-                        Fable Model Name
+                        Model ID (Your Endpoint&apos;s Model Name)
                       </label>
                       <input
                         type="text"
                         value={fableModel}
                         onChange={(e) => setFableModel(e.target.value)}
-                        placeholder="fable-astro-1"
-                        className="w-full bg-[#181B22] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs font-mono text-[#EDEFF5] outline-none"
+                        placeholder="e.g., your-fable-model"
+                        className="w-full bg-[#181B22] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#EDEFF5] placeholder-[#555C6E] outline-none"
                       />
                     </div>
                     <div>
@@ -493,9 +559,29 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                         value={fableApiKey}
                         onChange={(e) => setFableApiKey(e.target.value)}
                         placeholder="Bearer token"
-                        className="w-full bg-[#181B22] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs font-mono text-[#EDEFF5] placeholder-[#555C6E] outline-none"
+                        className="w-full bg-[#181B22] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#EDEFF5] placeholder-[#555C6E] outline-none"
                       />
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {adapterTestResult && (
+                <div
+                  className={`rounded-xl border px-4 py-3 text-xs flex items-start gap-2 ${
+                    adapterTestResult.ok
+                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                      : 'border-red-500/40 bg-red-950/30 text-red-300'
+                  }`}
+                >
+                  {adapterTestResult.ok && (
+                    <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
+                  )}
+                  <div className="space-y-0.5">
+                    <div className="font-semibold uppercase tracking-wider text-[11px]">
+                      {adapterTestResult.provider === 'gemini' ? 'Gemini Adapter Test' : 'Fable Adapter Test'}
+                    </div>
+                    <div>{adapterTestResult.message}</div>
                   </div>
                 </div>
               )}

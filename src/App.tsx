@@ -48,7 +48,7 @@ const DEFAULT_API_CONFIG: StudioApiConfig = {
   llmProvider: 'gemini',
   geminiModel: 'gemini-4-hydrogen',
   fableEndpointUrl: '',
-  fableModel: 'fable-astro-1',
+  fableModel: '',
   fableApiKey: '',
 };
 

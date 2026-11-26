@@ -36,7 +36,7 @@ const DEFAULT_CONFIG: PersistedConfig = {
   llmProvider: 'gemini',
   geminiModel: 'gemini-4-hydrogen',
   fableEndpointUrl: '',
-  fableModel: 'fable-astro-1',
+  fableModel: '',
   fableApiKey: '',
 };
 
@@ -121,9 +121,11 @@ async function callFableAdapter(
   }
 
   const bodyPayload: Record<string, unknown> = {
-    model: cfg.fableModel || 'fable-astro-1',
     messages,
   };
+  if (cfg.fableModel && cfg.fableModel.trim()) {
+    bodyPayload.model = cfg.fableModel.trim();
+  }
   if (expectJson) {
     bodyPayload.response_format = { type: 'json_object' };
   }
@@ -279,6 +281,91 @@ async function startServer() {
       res.json({ text, resolvedUrl });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to call external API.';
+      res.status(502).json({ error: message });
+    }
+  });
+
+  // Live Adapter Connection Test (Gemini & Fable)
+  app.post('/api/astro/test-adapter', async (req, res) => {
+    const {
+      provider,
+      geminiModel,
+      fableEndpointUrl,
+      fableModel,
+      fableApiKey,
+    } = req.body || {};
+
+    const storedCfg = readJsonFile<Partial<PersistedConfig>>(API_CONFIG_FILE, {});
+    const activeCfg: PersistedConfig = {
+      ...DEFAULT_CONFIG,
+      ...storedCfg,
+      geminiModel:
+        typeof geminiModel === 'string' && geminiModel.trim()
+          ? geminiModel.trim()
+          : storedCfg.geminiModel || DEFAULT_CONFIG.geminiModel,
+      fableEndpointUrl:
+        typeof fableEndpointUrl === 'string'
+          ? fableEndpointUrl.trim()
+          : storedCfg.fableEndpointUrl || '',
+      fableModel:
+        typeof fableModel === 'string'
+          ? fableModel.trim()
+          : storedCfg.fableModel || '',
+      fableApiKey:
+        typeof fableApiKey === 'string'
+          ? fableApiKey.trim()
+          : storedCfg.fableApiKey || '',
+    };
+
+    const targetProvider = provider === 'fable' ? 'fable' : 'gemini';
+    const startedAt = Date.now();
+
+    try {
+      if (targetProvider === 'fable') {
+        const reply = await callFableAdapter(
+          activeCfg,
+          [
+            {
+              role: 'user',
+              content: 'Connection check: reply with exactly OK.',
+            },
+          ],
+          false
+        );
+        res.json({
+          ok: true,
+          provider: 'fable',
+          model: activeCfg.fableModel || 'endpoint-default',
+          latencyMs: Date.now() - startedAt,
+          reply: reply.trim().slice(0, 140),
+        });
+        return;
+      }
+
+      const ai = getAiClient();
+      if (!ai) {
+        res.status(503).json({
+          error:
+            'GEMINI_API_KEY is not configured on the server. Add GEMINI_API_KEY in Settings > Secrets.',
+        });
+        return;
+      }
+
+      const modelName = activeCfg.geminiModel || 'gemini-4-hydrogen';
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: 'Connection check: reply with exactly OK.',
+      });
+
+      res.json({
+        ok: true,
+        provider: 'gemini',
+        model: modelName,
+        latencyMs: Date.now() - startedAt,
+        reply: (response.text ?? '').trim().slice(0, 140) || 'OK',
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Adapter test failed.';
       res.status(502).json({ error: message });
     }
   });
