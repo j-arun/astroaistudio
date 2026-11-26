@@ -8,7 +8,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 
 dotenv.config();
 
-const PRIMARY_PORT = Number(process.env.ASTRO_PORT) || 6000;
+const PRIMARY_PORT = Number(process.env.ASTRO_PORT) || 6001;
 const PREVIEW_PORT = 3000;
 const DATA_DIR = path.resolve(process.cwd(), '.astro-studio-data');
 const PROFILES_FILE = path.join(DATA_DIR, 'profiles.json');
