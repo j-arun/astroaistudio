@@ -1,0 +1,89 @@
+export type CardDomain =
+  | 'Career'
+  | 'Love'
+  | 'Finance'
+  | 'Education'
+  | 'Health'
+  | 'Family'
+  | 'Travel';
+
+export type ThreadStep = 'narrative' | 'reading';
+
+export interface HousePlacement {
+  sign: string;
+  signIndex: number; // 0 = Aries .. 11 = Pisces
+  house: number; // 1..12
+  planets: string[];
+  savBindus: number;
+}
+
+export interface ParsedNatalSummary {
+  name: string;
+  lagna: string;
+  moonSign: string;
+  nakshatra: string;
+  currentDasha: string;
+  d1Houses: HousePlacement[];
+  divisionalHighlights: Record<string, string>;
+  savTotal: number;
+  bavHighlights: Array<{ planet: string; sign: string; bindus: number }>;
+  tokenEstimate: number;
+}
+
+export interface StudioApiConfig {
+  natalApiUrl: string;
+  transitApiUrl: string;
+  apiBearerToken: string;
+}
+
+export interface AstroProfile {
+  id: string;
+  name: string;
+  roleLabel: string;
+  natalDump: string;
+  natalApiUrl?: string;
+  updatedAt: string;
+}
+
+export interface MagicCard {
+  id: string;
+  domain: CardDomain;
+  title: string;
+  eventDate: string; // Typed YYYY-MM-DD inside narrativeWindow
+  narrative: string;
+  question: string;
+  reading?: {
+    verdictSummary: string;
+    planetaryTriggers: string;
+    timingWindow: string;
+    guidance: string;
+  };
+}
+
+export interface TransitWindow {
+  startMonth: string; // Typed YYYY-MM
+  endMonth: string; // Typed YYYY-MM (max 3 months span inclusive)
+  transitDump: string;
+}
+
+export interface ThreadMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  referencedCardIds?: string[];
+  timestamp: string;
+}
+
+export interface AstroThread {
+  id: string;
+  profileId: string;
+  title: string;
+  createdAt: string;
+  submittedAt?: string;
+  step: ThreadStep;
+  narrativeWindow: TransitWindow;
+  cards: MagicCard[];
+  futureWindow: TransitWindow;
+  overallSynthesis?: string;
+  messages: ThreadMessage[];
+}
