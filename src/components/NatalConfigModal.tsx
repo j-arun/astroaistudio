@@ -58,6 +58,12 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
   const [fableEndpointUrl, setFableEndpointUrl] = useState(apiConfig.fableEndpointUrl || '');
   const [fableModel, setFableModel] = useState(apiConfig.fableModel || '');
   const [fableApiKey, setFableApiKey] = useState(apiConfig.fableApiKey || '');
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState(
+    apiConfig.ollamaBaseUrl || 'http://localhost:11434'
+  );
+  const [ollamaModel, setOllamaModel] = useState(apiConfig.ollamaModel || 'qwen2.5:latest');
+  const [discoveredOllamaModels, setDiscoveredOllamaModels] = useState<string[]>([]);
+  const [discoveringOllama, setDiscoveringOllama] = useState(false);
 
   const [isFetchingNatal, setIsFetchingNatal] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -93,6 +99,8 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
     fableEndpointUrl: fableEndpointUrl.trim(),
     fableModel: fableModel.trim(),
     fableApiKey: fableApiKey.trim(),
+    ollamaBaseUrl: ollamaBaseUrl.trim() || 'http://localhost:11434',
+    ollamaModel: ollamaModel.trim() || 'qwen2.5:latest',
   });
 
   const handleFetchNatalFromApi = async () => {
@@ -138,6 +146,46 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
     }
   };
 
+  const handleDiscoverOllamaModels = async () => {
+    setDiscoveringOllama(true);
+    setAdapterTestResult(null);
+    try {
+      const res = await fetch('/api/astro/ollama-models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ollamaBaseUrl: ollamaBaseUrl.trim() || 'http://localhost:11434',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to discover Ollama models.');
+      }
+      const list: string[] = Array.isArray(data.models) ? data.models : [];
+      setDiscoveredOllamaModels(list);
+      if (list.length > 0 && !list.includes(ollamaModel.trim())) {
+        const qwenFirst = list.find((m) => /qwen/i.test(m)) || list[0];
+        setOllamaModel(qwenFirst);
+      }
+      setAdapterTestResult({
+        ok: true,
+        provider: 'ollama',
+        message:
+          list.length > 0
+            ? `Discovered ${list.length} model(s) at ${data.baseUrl}: ${list.join(', ')}`
+            : `Connected to ${data.baseUrl}, but no models were returned by /api/tags.`,
+      });
+    } catch (err: unknown) {
+      setAdapterTestResult({
+        ok: false,
+        provider: 'ollama',
+        message: err instanceof Error ? err.message : 'Unable to discover Ollama models.',
+      });
+    } finally {
+      setDiscoveringOllama(false);
+    }
+  };
+
   const handleTestAdapter = async (target: LlmProvider) => {
     setTestingProvider(target);
     setAdapterTestResult(null);
@@ -152,6 +200,8 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
           fableEndpointUrl: fableEndpointUrl.trim(),
           fableModel: fableModel.trim(),
           fableApiKey: fableApiKey.trim(),
+          ollamaBaseUrl: ollamaBaseUrl.trim() || 'http://localhost:11434',
+          ollamaModel: ollamaModel.trim() || 'qwen2.5:latest',
         }),
       });
       const data = await res.json();
@@ -197,7 +247,12 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
     }
     if (llmProvider === 'fable' && !fableEndpointUrl.trim()) {
       setActiveTab('llm');
-      setFetchError('Enter your Fable Adapter Endpoint URL or switch back to Gemini.');
+      setFetchError('Enter your Fable Adapter Endpoint URL or switch to another adapter.');
+      return;
+    }
+    if (llmProvider === 'ollama' && (!ollamaBaseUrl.trim() || !ollamaModel.trim())) {
+      setActiveTab('llm');
+      setFetchError('Enter your Ollama Base URL and Model name (e.g., qwen2.5:14b).');
       return;
     }
 
@@ -232,7 +287,7 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
               Settings · {mode === 'create' ? 'Profile, APIs & LLM' : profile?.personId || profile?.name}
             </h2>
             <p className="text-xs text-[#8E95A5] mt-0.5">
-              Configure session Natal Dump, REST endpoints, and choose between Gemini or Fable LLM adapters.
+              Configure session Natal Dump, REST endpoints, and choose between Gemini, Fable, or Private LLM (Ollama).
             </p>
           </div>
           <button
@@ -268,7 +323,7 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
             }`}
           >
             <Cpu className="w-3.5 h-3.5" />
-            <span>LLM Adapters (Gemini / Fable)</span>
+            <span>LLM Adapters (Gemini / Fable / Private Ollama)</span>
           </button>
         </div>
 
@@ -431,13 +486,13 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
               </div>
             </>
           ) : (
-            /* TAB 2: LLM ADAPTERS (GEMINI & FABLE) */
+            /* TAB 2: LLM ADAPTERS (GEMINI, FABLE & PRIVATE OLLAMA) */
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-[#8E95A5] mb-2">
                   Select Active LLM Engine Adapter
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <button
                     type="button"
                     onClick={() => setLlmProvider('gemini')}
@@ -447,14 +502,14 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                         : 'bg-[#111318] border-[#262A34] hover:border-[#3A4152]'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-[#EDEFF5]">Gemini Adapter</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-[#EDEFF5]">Gemini</span>
                       <span className="text-[10px] font-mono text-[#D4A853]">
-                        {llmProvider === 'gemini' ? 'ACTIVE' : 'SELECT'}
+                        {llmProvider === 'gemini' ? 'ACTIVE' : 'PUBLIC'}
                       </span>
                     </div>
                     <p className="text-xs text-[#8E95A5] mt-1">
-                      Google @google/genai SDK using your server-side Gemini configuration.
+                      Public Google @google/genai SDK via server environment.
                     </p>
                   </button>
 
@@ -467,14 +522,34 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                         : 'bg-[#111318] border-[#262A34] hover:border-[#3A4152]'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-[#EDEFF5]">Fable Adapter</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-[#EDEFF5]">Fable</span>
                       <span className="text-[10px] font-mono text-[#D4A853]">
-                        {llmProvider === 'fable' ? 'ACTIVE' : 'SELECT'}
+                        {llmProvider === 'fable' ? 'ACTIVE' : 'CLOUD'}
                       </span>
                     </div>
                     <p className="text-xs text-[#8E95A5] mt-1">
-                      Connect your Fable LLM inference endpoint (OpenAI-compatible / chat completions).
+                      Cloud-hosted Fable (e.g. Fable 5.2 / OpenAI-compatible endpoint).
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setLlmProvider('ollama')}
+                    className={`text-left rounded-xl p-4 border transition-colors ${
+                      llmProvider === 'ollama'
+                        ? 'bg-[#D4A853]/10 border-[#D4A853]'
+                        : 'bg-[#111318] border-[#262A34] hover:border-[#3A4152]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-[#EDEFF5]">Private LLM</span>
+                      <span className="text-[10px] font-mono text-[#D4A853]">
+                        {llmProvider === 'ollama' ? 'ACTIVE' : 'OLLAMA'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#8E95A5] mt-1">
+                      Ollama-hosted Qwen or local model running on your laptop.
                     </p>
                   </button>
                 </div>
@@ -509,7 +584,7 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                     Credentials are handled automatically by the server environment.
                   </p>
                 </div>
-              ) : (
+              ) : llmProvider === 'fable' ? (
                 <div className="bg-[#111318] border border-[#262A34] rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-medium text-[#EDEFF5]">
@@ -546,7 +621,7 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                         type="text"
                         value={fableModel}
                         onChange={(e) => setFableModel(e.target.value)}
-                        placeholder="e.g., your-fable-model"
+                        placeholder="e.g., fable-5.2"
                         className="w-full bg-[#181B22] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#EDEFF5] placeholder-[#555C6E] outline-none"
                       />
                     </div>
@@ -564,6 +639,99 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                     </div>
                   </div>
                 </div>
+              ) : (
+                <div className="bg-[#111318] border border-[#262A34] rounded-xl p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-[#EDEFF5]">
+                      Private LLM · Ollama Hosted (Qwen / Local)
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={discoveringOllama || testingProvider !== null}
+                        onClick={handleDiscoverOllamaModels}
+                        className="px-3 py-1.5 rounded-md border border-[#2E3442] bg-[#181B22] hover:bg-[#1E222B] disabled:opacity-50 text-[#EDEFF5] text-xs font-medium inline-flex items-center gap-1.5 transition-colors"
+                      >
+                        <RefreshCw
+                          className={`w-3.5 h-3.5 text-[#D4A853] ${
+                            discoveringOllama ? 'animate-spin' : ''
+                          }`}
+                        />
+                        <span>{discoveringOllama ? 'Discovering...' : 'Discover Models'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={testingProvider !== null || discoveringOllama}
+                        onClick={() => handleTestAdapter('ollama')}
+                        className="px-3 py-1.5 rounded-md bg-[#D4A853] hover:bg-[#DFB96B] disabled:opacity-50 text-[#111318] text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+                      >
+                        <Zap
+                          className={`w-3.5 h-3.5 ${
+                            testingProvider === 'ollama' ? 'animate-pulse' : ''
+                          }`}
+                        />
+                        <span>
+                          {testingProvider === 'ollama' ? 'Testing Ollama...' : 'Test Ollama'}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
+                        Ollama Base URL
+                      </label>
+                      <input
+                        type="url"
+                        value={ollamaBaseUrl}
+                        onChange={(e) => setOllamaBaseUrl(e.target.value)}
+                        placeholder="http://localhost:11434"
+                        className="w-full bg-[#181B22] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs font-mono text-[#EDEFF5] placeholder-[#555C6E] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
+                        Ollama Model Name (e.g., Qwen)
+                      </label>
+                      <input
+                        type="text"
+                        value={ollamaModel}
+                        onChange={(e) => setOllamaModel(e.target.value)}
+                        placeholder="e.g., qwen2.5:14b or qwen3:8b"
+                        className="w-full bg-[#181B22] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs font-mono text-[#EDEFF5] placeholder-[#555C6E] outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {discoveredOllamaModels.length > 0 && (
+                    <div className="space-y-1.5">
+                      <span className="block text-[11px] font-medium text-[#8E95A5]">
+                        Discovered Local Models (Click to Select)
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {discoveredOllamaModels.map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => setOllamaModel(m)}
+                            className={`px-2.5 py-1 rounded-md border text-[11px] font-mono transition-colors ${
+                              ollamaModel.trim() === m
+                                ? 'border-[#D4A853] bg-[#D4A853]/15 text-[#D4A853]'
+                                : 'border-[#262A34] bg-[#181B22] text-[#B9C0D0] hover:border-[#3A4152] hover:text-[#EDEFF5]'
+                            }`}
+                          >
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-[#8E95A5] leading-relaxed">
+                    Use <span className="font-mono text-[#EDEFF5]">http://localhost:11434</span> when running locally on your laptop, or an HTTPS tunnel / Tailscale URL if connecting from a remote cloud preview.
+                  </p>
+                </div>
               )}
 
               {adapterTestResult && (
@@ -579,7 +747,11 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                   )}
                   <div className="space-y-0.5">
                     <div className="font-semibold uppercase tracking-wider text-[11px]">
-                      {adapterTestResult.provider === 'gemini' ? 'Gemini Adapter Test' : 'Fable Adapter Test'}
+                      {adapterTestResult.provider === 'gemini'
+                        ? 'Gemini Adapter Test'
+                        : adapterTestResult.provider === 'fable'
+                        ? 'Fable Adapter Test'
+                        : 'Private Ollama Adapter Test'}
                     </div>
                     <div>{adapterTestResult.message}</div>
                   </div>

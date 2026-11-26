@@ -21,11 +21,13 @@ interface PersistedConfig {
   natalEndpointPath: string;
   transitEndpointPath: string;
   apiBearerToken: string;
-  llmProvider: 'gemini' | 'fable';
+  llmProvider: 'gemini' | 'fable' | 'ollama';
   geminiModel: string;
   fableEndpointUrl: string;
   fableModel: string;
   fableApiKey: string;
+  ollamaBaseUrl: string;
+  ollamaModel: string;
 }
 
 const DEFAULT_CONFIG: PersistedConfig = {
@@ -38,6 +40,8 @@ const DEFAULT_CONFIG: PersistedConfig = {
   fableEndpointUrl: '',
   fableModel: '',
   fableApiKey: '',
+  ollamaBaseUrl: 'http://localhost:11434',
+  ollamaModel: 'qwen2.5:latest',
 };
 
 function ensureDataDir() {
@@ -156,13 +160,90 @@ async function callFableAdapter(
   }
 }
 
+function normalizeOllamaBaseUrl(rawUrl: string): string {
+  const trimmed = (rawUrl || 'http://localhost:11434').trim().replace(/\/+$/, '');
+  return trimmed.replace(/\/api\/(chat|generate|tags)$/i, '');
+}
+
+async function callOllamaAdapter(
+  cfg: PersistedConfig,
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+  expectJson: boolean
+): Promise<string> {
+  const baseUrl = normalizeOllamaBaseUrl(cfg.ollamaBaseUrl || 'http://localhost:11434');
+  const model = (cfg.ollamaModel || '').trim();
+  if (!model) {
+    throw new Error(
+      'Ollama model name is not configured. Open Settings -> LLM Adapters to enter or discover your Ollama model (e.g., qwen2.5:14b).'
+    );
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(baseUrl);
+  } catch {
+    throw new Error(`Invalid Ollama Base URL: ${baseUrl}`);
+  }
+  if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    throw new Error('Ollama Base URL must use http:// or https://.');
+  }
+
+  const chatUrl = `${baseUrl}/api/chat`;
+  const bodyPayload: Record<string, unknown> = {
+    model,
+    messages,
+    stream: false,
+  };
+  if (expectJson) {
+    bodyPayload.format = 'json';
+  }
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(chatUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyPayload),
+    });
+  } catch (err: unknown) {
+    const detail = err instanceof Error ? err.message : 'Connection refused';
+    throw new Error(
+      `Cannot reach Private LLM (Ollama) at ${baseUrl} (${detail}). Ensure Ollama is running locally or use a reachable tunnel URL if this app is running remotely.`
+    );
+  }
+
+  const raw = await upstream.text();
+  if (!upstream.ok) {
+    throw new Error(`Ollama returned ${upstream.status}: ${raw.slice(0, 260)}`);
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    const content = parsed?.message?.content ?? parsed?.response;
+    if (typeof content === 'string') return content;
+    return raw;
+  } catch {
+    return raw;
+  }
+}
+
 function parseLooseJson(rawText: string): Record<string, unknown> {
-  const cleaned = rawText
+  const withoutThink = rawText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  const cleaned = withoutThink
     .replace(/^```json\s*/i, '')
     .replace(/^```\s*/i, '')
     .replace(/```\s*$/i, '')
     .trim();
-  return JSON.parse(cleaned);
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
+    }
+    throw new Error('Model response was not valid JSON.');
+  }
 }
 
 async function startServer() {
@@ -285,7 +366,53 @@ async function startServer() {
     }
   });
 
-  // Live Adapter Connection Test (Gemini & Fable)
+  // Discover installed models on Private Ollama instance
+  app.post('/api/astro/ollama-models', async (req, res) => {
+    const { ollamaBaseUrl } = req.body || {};
+    const storedCfg = readJsonFile<Partial<PersistedConfig>>(API_CONFIG_FILE, {});
+    const baseUrl = normalizeOllamaBaseUrl(
+      typeof ollamaBaseUrl === 'string' && ollamaBaseUrl.trim()
+        ? ollamaBaseUrl
+        : storedCfg.ollamaBaseUrl || DEFAULT_CONFIG.ollamaBaseUrl
+    );
+
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(baseUrl);
+    } catch {
+      res.status(400).json({ error: `Invalid Ollama Base URL: ${baseUrl}` });
+      return;
+    }
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      res.status(400).json({ error: 'Only http:// and https:// URLs are supported.' });
+      return;
+    }
+
+    try {
+      const upstream = await fetch(`${baseUrl}/api/tags`);
+      const raw = await upstream.text();
+      if (!upstream.ok) {
+        res.status(upstream.status).json({
+          error: `Ollama /api/tags returned ${upstream.status}: ${raw.slice(0, 200)}`,
+        });
+        return;
+      }
+      const data = JSON.parse(raw);
+      const models: string[] = Array.isArray(data.models)
+        ? data.models
+            .map((m: { name?: string; model?: string }) => m.name || m.model || '')
+            .filter(Boolean)
+        : [];
+      res.json({ models, baseUrl });
+    } catch (err: unknown) {
+      const detail = err instanceof Error ? err.message : 'Unable to reach Ollama.';
+      res.status(502).json({
+        error: `Cannot reach Ollama at ${baseUrl} (${detail}). Ensure Ollama is running or accessible from this server.`,
+      });
+    }
+  });
+
+  // Live Adapter Connection Test (Gemini, Fable & Private Ollama)
   app.post('/api/astro/test-adapter', async (req, res) => {
     const {
       provider,
@@ -293,6 +420,8 @@ async function startServer() {
       fableEndpointUrl,
       fableModel,
       fableApiKey,
+      ollamaBaseUrl,
+      ollamaModel,
     } = req.body || {};
 
     const storedCfg = readJsonFile<Partial<PersistedConfig>>(API_CONFIG_FILE, {});
@@ -315,12 +444,42 @@ async function startServer() {
         typeof fableApiKey === 'string'
           ? fableApiKey.trim()
           : storedCfg.fableApiKey || '',
+      ollamaBaseUrl:
+        typeof ollamaBaseUrl === 'string' && ollamaBaseUrl.trim()
+          ? ollamaBaseUrl.trim()
+          : storedCfg.ollamaBaseUrl || DEFAULT_CONFIG.ollamaBaseUrl,
+      ollamaModel:
+        typeof ollamaModel === 'string' && ollamaModel.trim()
+          ? ollamaModel.trim()
+          : storedCfg.ollamaModel || DEFAULT_CONFIG.ollamaModel,
     };
 
-    const targetProvider = provider === 'fable' ? 'fable' : 'gemini';
+    const targetProvider =
+      provider === 'fable' ? 'fable' : provider === 'ollama' ? 'ollama' : 'gemini';
     const startedAt = Date.now();
 
     try {
+      if (targetProvider === 'ollama') {
+        const reply = await callOllamaAdapter(
+          activeCfg,
+          [
+            {
+              role: 'user',
+              content: 'Connection check: reply with exactly OK.',
+            },
+          ],
+          false
+        );
+        res.json({
+          ok: true,
+          provider: 'ollama',
+          model: activeCfg.ollamaModel,
+          latencyMs: Date.now() - startedAt,
+          reply: reply.trim().slice(0, 140),
+        });
+        return;
+      }
+
       if (targetProvider === 'fable') {
         const reply = await callFableAdapter(
           activeCfg,
@@ -394,6 +553,20 @@ async function startServer() {
     });
 
     try {
+      if (activeCfg.llmProvider === 'ollama') {
+        const rawOllama = await callOllamaAdapter(
+          activeCfg,
+          [
+            { role: 'system', content: systemInstruction },
+            { role: 'user', content: prompt },
+          ],
+          true
+        );
+        const parsed = parseLooseJson(rawOllama);
+        res.json(parsed);
+        return;
+      }
+
       if (activeCfg.llmProvider === 'fable') {
         const rawFable = await callFableAdapter(
           activeCfg,
@@ -527,6 +700,20 @@ ${futureWindow?.transitDump || 'N/A'}
 Answer follow-up questions in strictly realistic, grounded, real-world terms—describing practical possibilities, timing, and actions without mentioning astrology, planets, charts, houses, dasha, or transits unless the user explicitly asks for the astrological explanation. Keep answers clear, structured, and crisp.`;
 
     try {
+      if (activeCfg.llmProvider === 'ollama') {
+        const ollamaMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+          { role: 'system', content: systemInstruction },
+          ...(history || []).map((m: { role: 'user' | 'assistant'; content: string }) => ({
+            role: m.role,
+            content: m.content,
+          })),
+          { role: 'user', content: userMessage },
+        ];
+        const reply = await callOllamaAdapter(activeCfg, ollamaMessages, false);
+        res.json({ reply: reply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim() });
+        return;
+      }
+
       if (activeCfg.llmProvider === 'fable') {
         const fableMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
           { role: 'system', content: systemInstruction },

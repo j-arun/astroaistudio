@@ -40,6 +40,11 @@ const STORAGE_CONFIG_KEY = 'astro_studio_config_v2';
 
 const LEGACY_SEEDED_IDS = new Set(['profile-arun', 'profile-meera']);
 
+const STORAGE_SIDEBAR_WIDTH_KEY = 'astro_studio_sidebar_width_v1';
+const MIN_SIDEBAR_WIDTH = 220;
+const MAX_SIDEBAR_WIDTH = 460;
+const DEFAULT_SIDEBAR_WIDTH = 272;
+
 const DEFAULT_API_CONFIG: StudioApiConfig = {
   baseApiUrl: '',
   natalEndpointPath: '/api/natal/dump',
@@ -50,6 +55,8 @@ const DEFAULT_API_CONFIG: StudioApiConfig = {
   fableEndpointUrl: '',
   fableModel: '',
   fableApiKey: '',
+  ollamaBaseUrl: 'http://localhost:11434',
+  ollamaModel: 'qwen2.5:latest',
 };
 
 // Build selectable Month+Year dropdown options (2020..2030)
@@ -87,7 +94,7 @@ function createInitialDraftThread(profile: AstroProfile | null): AstroThread {
   return {
     id: `thread-${Date.now()}`,
     profileId: profile?.id || '',
-    title: 'New Reading Thread',
+    title: 'New Thread',
     createdAt: new Date().toISOString(),
     step: 'narrative',
     narrativeWindow: {
@@ -115,9 +122,22 @@ export default function App() {
   );
 
   // Sequential step gating inside a New Thread:
-  // 1) Set Past Narrative Period -> 2) Set Future Target Period -> 3) Magic Cards (max 3)
+  // 1) Set Past Narrative Period -> 2) Set Future Target Period -> 3) Magic Card (1 per thread)
   const [pastSet, setPastSet] = useState(false);
   const [futureSet, setFutureSet] = useState(false);
+
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem(STORAGE_SIDEBAR_WIDTH_KEY));
+      if (Number.isFinite(saved) && saved >= MIN_SIDEBAR_WIDTH && saved <= MAX_SIDEBAR_WIDTH) {
+        return saved;
+      }
+    } catch {
+      // ignore
+    }
+    return DEFAULT_SIDEBAR_WIDTH;
+  });
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
 
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'edit' | 'create' | null>(null);
@@ -132,6 +152,39 @@ export default function App() {
   const [chatError, setChatError] = useState<string | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [showFullPromptPreview, setShowFullPromptPreview] = useState(false);
+
+  useEffect(() => {
+    if (!isResizingSidebar) return;
+
+    const handlePointerMove = (e: PointerEvent) => {
+      const clamped = Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, e.clientX));
+      setSidebarWidth(clamped);
+    };
+
+    const handlePointerUp = () => {
+      setIsResizingSidebar(false);
+    };
+
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+
+    return () => {
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [isResizingSidebar]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_SIDEBAR_WIDTH_KEY, String(sidebarWidth));
+    } catch {
+      // ignore
+    }
+  }, [sidebarWidth]);
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -526,6 +579,8 @@ export default function App() {
             fableEndpointUrl: apiConfig.fableEndpointUrl,
             fableModel: apiConfig.fableModel,
             fableApiKey: apiConfig.fableApiKey,
+            ollamaBaseUrl: apiConfig.ollamaBaseUrl,
+            ollamaModel: apiConfig.ollamaModel,
           },
         }),
       });
@@ -630,6 +685,8 @@ export default function App() {
             fableEndpointUrl: apiConfig.fableEndpointUrl,
             fableModel: apiConfig.fableModel,
             fableApiKey: apiConfig.fableApiKey,
+            ollamaBaseUrl: apiConfig.ollamaBaseUrl,
+            ollamaModel: apiConfig.ollamaModel,
           },
         }),
       });
@@ -666,8 +723,11 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-[#111318] text-[#EDEFF5] flex">
-      {/* LEFT SIDEBAR — PROFILE SESSION + SUBMITTED THREADS */}
-      <aside className="w-[272px] shrink-0 bg-[#161920] border-r border-[#262A34] flex flex-col justify-between">
+      {/* LEFT SIDEBAR — PROFILE SESSION + SUBMITTED THREADS (RESIZABLE) */}
+      <aside
+        style={{ width: `${sidebarWidth}px` }}
+        className="shrink-0 bg-[#161920] border-r border-[#262A34] flex flex-col justify-between relative"
+      >
         <div className="p-3.5 space-y-3 border-b border-[#262A34]">
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
@@ -853,7 +913,7 @@ export default function App() {
             className="w-full py-2 px-3 bg-[#D4A853] hover:bg-[#DFB96B] disabled:opacity-40 disabled:cursor-not-allowed text-[#111318] text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap"
           >
             <Plus className="w-3.5 h-3.5" />
-            New Reading Thread
+            New Thread
           </button>
         </div>
 
@@ -868,8 +928,8 @@ export default function App() {
             <div className="px-2.5 py-6 text-center border border-dashed border-[#262A34] rounded-lg mx-1">
               <p className="text-xs text-[#8E95A5] leading-relaxed">
                 {activeProfile
-                  ? 'Set your past & future periods, submit up to 3 Magic Cards, and each reading lands here.'
-                  : 'Create a profile first to start logging reading threads.'}
+                  ? 'Set your past & future periods, submit 1 Magic Card, and each reading lands here.'
+                  : 'Create a profile first to start logging threads.'}
               </p>
             </div>
           ) : (
@@ -910,7 +970,9 @@ export default function App() {
                     <span>·</span>
                     <span>{timeStr}</span>
                     <span>·</span>
-                    <span className="text-[#D4A853]/80">{t.cards.length} cards</span>
+                    <span className="text-[#D4A853]/80">
+                      {t.cards.length} {t.cards.length === 1 ? 'card' : 'cards'}
+                    </span>
                   </div>
                 </div>
               );
@@ -919,14 +981,33 @@ export default function App() {
         </div>
 
         {/* Footer: Active LLM Adapter & Natal Load */}
-        <div className="px-4 py-2.5 border-t border-[#262A34] text-[11px] text-[#6C7384] flex items-center justify-between">
-          <span className="font-mono uppercase text-[#D4A853]">
-            {apiConfig.llmProvider === 'fable' ? 'Fable LLM' : 'Gemini LLM'}
+        <div className="px-4 py-2.5 border-t border-[#262A34] text-[11px] text-[#6C7384] flex items-center justify-between gap-2">
+          <span className="font-mono uppercase text-[#D4A853] truncate">
+            {apiConfig.llmProvider === 'ollama'
+              ? `Private · ${apiConfig.ollamaModel || 'Ollama'}`
+              : apiConfig.llmProvider === 'fable'
+              ? 'Fable LLM'
+              : 'Gemini LLM'}
           </span>
-          <span className="font-mono tabular-nums text-[#8E95A5]">
+          <span className="font-mono tabular-nums text-[#8E95A5] shrink-0">
             {parsedNatal ? `${parsedNatal.tokenEstimate.toLocaleString()} tok` : '—'}
           </span>
         </div>
+
+        {/* Sidebar Resize Handle */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
+          title="Drag to resize sidebar"
+          onPointerDown={(e) => {
+            e.preventDefault();
+            setIsResizingSidebar(true);
+          }}
+          className={`absolute top-0 right-0 bottom-0 w-1.5 cursor-col-resize z-20 transition-colors ${
+            isResizingSidebar ? 'bg-[#D4A853]' : 'hover:bg-[#D4A853]/50'
+          }`}
+        />
       </aside>
 
       {/* MAIN WORKSPACE */}
@@ -1148,7 +1229,7 @@ export default function App() {
                           Set Future Target Period
                         </h1>
                         <p className="text-xs text-[#8E95A5] mt-1">
-                          Select From and To (1–3 months max) and click Set to deal your Magic Cards.
+                          Select From and To (1–3 months max) and click Set to deal your Magic Card.
                         </p>
                       </div>
 
@@ -1218,7 +1299,7 @@ export default function App() {
                     </div>
                   </div>
                 ) : (
-                  /* STAGE 3: MAGIC CARDS (MAX 3) + SUBMIT CARDS */
+                  /* STAGE 3: MAGIC CARD (1 PER THREAD) + SUBMIT CARD */
                   <div className="space-y-5">
                     <div className="bg-[#161920] border border-[#262A34] rounded-lg px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
                       <div className="flex items-center gap-3 text-[#B9C0D0]">

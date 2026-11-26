@@ -62,7 +62,9 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
           <ArrowRight className="w-3 h-3 text-[#6C7384]" />
           <span className="text-[#EDEFF5] font-medium tabular-nums">{futureLabel}</span>
           <span aria-hidden="true">·</span>
-          <span className="tabular-nums">{thread.cards.length} Cards</span>
+          <span className="tabular-nums">
+            {thread.cards.length} {thread.cards.length === 1 ? 'Card' : 'Cards'}
+          </span>
         </div>
 
         {thread.overallSynthesis && (
@@ -74,8 +76,9 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
       {thread.cards.length > 0 && activeCard && activeTheme && ActiveDomainIcon && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-            {/* Left: Interactive Stacked Card Deck */}
-            <div className="lg:col-span-4 space-y-2.5">
+            {/* Left: Interactive Stacked Card Deck (only when multiple cards exist) */}
+            {thread.cards.length > 1 && (
+              <div className="lg:col-span-4 space-y-2.5">
               <div className="flex items-center justify-between text-xs text-[#8E95A5] px-1">
                 <h3 className="flex items-center gap-1.5 text-sm font-semibold text-[#EDEFF5]">
                   <Layers className="w-3.5 h-3.5 text-[#D4A853]" />
@@ -127,9 +130,10 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                 })}
               </div>
             </div>
+            )}
 
             {/* Right: Active Card Real-World Scenario & Practical Guidance */}
-            <div className="lg:col-span-8 space-y-3">
+            <div className={`${thread.cards.length > 1 ? 'lg:col-span-8' : 'lg:col-span-12'} space-y-3`}>
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeCard.id}

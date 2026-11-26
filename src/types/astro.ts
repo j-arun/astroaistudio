@@ -10,7 +10,7 @@ export type CardDomain =
 
 export type ThreadStep = 'narrative' | 'reading';
 
-export type LlmProvider = 'gemini' | 'fable';
+export type LlmProvider = 'gemini' | 'fable' | 'ollama';
 
 export interface HousePlacement {
   sign: string;
@@ -43,6 +43,8 @@ export interface StudioApiConfig {
   fableEndpointUrl: string;
   fableModel: string;
   fableApiKey: string;
+  ollamaBaseUrl: string;
+  ollamaModel: string;
 }
 
 export interface AstroProfile {

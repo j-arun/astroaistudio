@@ -14,7 +14,7 @@ import {
 } from '../data/sampleProfiles';
 import { getCardTheme } from '../data/cardThemes';
 
-export const MAX_MAGIC_CARDS = 3;
+export const MAX_MAGIC_CARDS = 1;
 
 interface MagicCardDeckProps {
   startMonth: string;
@@ -103,7 +103,7 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
   const handleFlipToQuestion = () => {
     if (isMaxReached) {
       setErrorMsg(
-        `Maximum ${MAX_MAGIC_CARDS} cards allowed. Edit a card in the stack or click Submit Cards.`
+        'Only 1 card is allowed per thread. Edit your card below or click Submit Card.'
       );
       return;
     }
@@ -122,7 +122,7 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
 
   const handlePushToTray = () => {
     if (isMaxReached) {
-      setErrorMsg(`Maximum ${MAX_MAGIC_CARDS} cards allowed.`);
+      setErrorMsg('Only 1 card is allowed per thread.');
       return;
     }
     if (!title.trim() || !narrative.trim()) {
@@ -182,14 +182,14 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold text-[#EDEFF5] tracking-tight">
-            Magic Cards · Up to 3 Cards Maximum
+            Magic Card · 1 Card Per Thread
           </h2>
           <p className="text-xs text-[#8E95A5] mt-0.5">
-            Choose a life theme, record what occurred ({bounds.minDate} to {bounds.maxDate}), flip to ask your question, and submit up to 3 cards.
+            Choose a life theme, record what occurred ({bounds.minDate} to {bounds.maxDate}), flip to ask one focused question, and submit your card.
           </p>
         </div>
         <span className="text-xs font-mono tabular-nums text-[#D4A853]">
-          {cards.length} / {MAX_MAGIC_CARDS} cards
+          {cards.length} / {MAX_MAGIC_CARDS} card
         </span>
       </div>
 
@@ -197,11 +197,11 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
       {isMaxReached ? (
         <div className="max-w-2xl mx-auto rounded-2xl border border-white/15 bg-white/[0.03] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_18px_40px_rgba(0,0,0,0.4)] p-6 text-center space-y-2">
           <p className="text-sm font-semibold text-[#EDEFF5]">
-            3 / 3 Magic Cards Ready
+            1 / 1 Magic Card Ready
           </p>
           <p className="text-xs text-[#8E95A5]">
-            Maximum 3 cards reached. Click any card in the stack below to edit it, or click{' '}
-            <span className="text-[#D4A853] font-medium">Submit Cards</span>.
+            One focused card is staged for this thread. Click the card below to edit it, or click{' '}
+            <span className="text-[#D4A853] font-medium">Submit Card</span>.
           </p>
         </div>
       ) : (
@@ -400,7 +400,7 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
 
                 <div className="relative z-10 flex items-center justify-between pt-4 mt-4 border-t border-white/10">
                   <span className="text-xs text-white/55 font-mono tabular-nums">
-                    {cards.length} / {MAX_MAGIC_CARDS} cards
+                    {cards.length} / {MAX_MAGIC_CARDS} card
                   </span>
                   <button
                     type="button"
@@ -408,7 +408,7 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                     className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap shrink-0 shadow-sm ${activeTheme.buttonClass}`}
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>{editingId ? 'Update Card' : 'Add Card to Stack'}</span>
+                    <span>{editingId ? 'Update Card' : 'Stage Card'}</span>
                   </button>
                 </div>
               </div>
@@ -417,12 +417,12 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
         </div>
       )}
 
-      {/* TRANSPARENT GLASS CARD STACK + SUBMIT CARDS */}
+      {/* TRANSPARENT GLASS CARD SLOT + SUBMIT CARD */}
       <div className="rounded-2xl border border-white/10 bg-white/[0.025] backdrop-blur-xl p-4 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Layers className="w-4 h-4 text-[#D4A853]" />
-            <h3 className="text-sm font-semibold text-[#EDEFF5]">Card Stack</h3>
+            <h3 className="text-sm font-semibold text-[#EDEFF5]">Thread Card</h3>
             <span className="text-xs font-mono tabular-nums text-[#8E95A5]">
               · {cards.length} / {MAX_MAGIC_CARDS}
             </span>
@@ -437,8 +437,8 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
             <Sparkles className="w-3.5 h-3.5" />
             <span>
               {isSubmitting
-                ? 'Shuffling & Reading...'
-                : `Submit Cards (${cards.length})`}
+                ? 'Reading Card...'
+                : 'Submit Card'}
             </span>
           </button>
         </div>
@@ -446,11 +446,11 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
         {cards.length === 0 ? (
           <div className="border border-dashed border-white/15 rounded-xl py-5 text-center bg-white/[0.015]">
             <p className="text-xs text-[#8E95A5]">
-              No cards added yet. Fill a themed card above, flip it to ask your question, and add up to 3 cards.
+              No card staged yet. Choose a theme above, fill in what happened, flip to ask your question, and stage your card.
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3">
             {cards.map((card) => {
               const cTheme = getCardTheme(card.domain);
               const CardIcon = cTheme.icon;
