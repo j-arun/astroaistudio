@@ -5,6 +5,7 @@ import http from 'http';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
+import { buildAnalyzePromptParts } from './src/data/promptBuilder.ts';
 
 dotenv.config();
 
@@ -297,62 +298,13 @@ async function startServer() {
       ...(llmConfig || {}),
     };
 
-    const systemInstruction = `You are Astro AI Studio, a master Vedic astrologer (Jyotish) operating inside a unified 3-Fold Context Architecture:
-- FOLD 1 (SESSION NATAL BASELINE): Complete natal dump for ${profileName || 'the user'} including D1-D144 divisional charts, Vimshottari Dasha-Bhukti-Antara, Moon Sign (Janma Rasi), and SAV/BAV Ashtakavarga bindus.
-- FOLD 2 (PAST CALIBRATION NARRATIVE): A strict 1-3 month past window (${narrativeWindow.startMonth} to ${narrativeWindow.endMonth}) with Gochara transits AND real dated life event cards ("Magic Cards") that actually occurred. Use these past events to calibrate how Dasha + Gochara + SAV/BAV physically manifest for this chart.
-- FOLD 3 (TARGET FUTURE WINDOW): The future transit window (${futureWindow.startMonth} to ${futureWindow.endMonth}) with its Gochara transits and the user's specific card questions.
-
-Analyze EVERY card rigorously using house lordships, Dasha-Bhukti-Antara shifts, relevant divisional charts (D9, D10, D24, D60), SAV/BAV bindu strength, and Gochara from Janma Rasi (Moon sign). Be concrete, grounded, insightful, and concise so each card unfolds cleanly in the workspace spread.`;
-
-    const cardsSummary = cards
-      .map(
-        (
-          c: {
-            id: string;
-            domain: string;
-            title: string;
-            eventDate: string;
-            narrative: string;
-            question: string;
-          },
-          idx: number
-        ) =>
-          `CARD #${idx + 1} (id: ${c.id})
-- Domain: ${c.domain}
-- Past Event Title: ${c.title}
-- Past Event Date: ${c.eventDate}
-- Past Event Narrative: ${c.narrative}
-- Future Question for ${futureWindow.startMonth} to ${futureWindow.endMonth}: ${c.question || 'General outlook for this domain in the future window.'}`
-      )
-      .join('\n\n');
-
-    const prompt = `=== FOLD 1: NATAL DUMP ===
-${natalDump}
-
-=== FOLD 2: PAST NARRATIVE WINDOW (${narrativeWindow.startMonth} to ${narrativeWindow.endMonth}) ===
-PAST TRANSITS:
-${narrativeWindow.transitDump}
-
-PAST EVENT MAGIC CARDS & QUESTIONS:
-${cardsSummary}
-
-=== FOLD 3: FUTURE TRANSIT WINDOW (${futureWindow.startMonth} to ${futureWindow.endMonth}) ===
-FUTURE TRANSITS:
-${futureWindow.transitDump}
-
-Return JSON strictly matching:
-{
-  "overallSynthesis": "2-3 sentence macro synthesis",
-  "cardReadings": [
-    {
-      "cardId": "exact card id",
-      "verdictSummary": "direct 2-3 sentence answer",
-      "planetaryTriggers": "Dasha-Bhukti, Gochara, D-charts, SAV/BAV",
-      "timingWindow": "active sub-window inside future range",
-      "guidance": "1-2 sentence practical guidance"
-    }
-  ]
-}`;
+    const { systemInstruction, userPrompt: prompt } = buildAnalyzePromptParts({
+      profileName,
+      natalDump,
+      narrativeWindow,
+      cards,
+      futureWindow,
+    });
 
     try {
       if (activeCfg.llmProvider === 'fable') {
@@ -485,7 +437,7 @@ ${cardsContext}
 [FOLD 3 — FUTURE TRANSIT WINDOW: ${futureWindow?.startMonth} to ${futureWindow?.endMonth}]
 ${futureWindow?.transitDump || 'N/A'}
 
-Answer follow-up questions with direct references to specific Card numbers, exact dates, Dasha-Bhukti-Antara, divisional charts (D1-D144), SAV/BAV bindus, and Moon-sign Gochara. Keep answers clear, structured, and crisp.`;
+Answer follow-up questions in strictly realistic, grounded, real-world terms—describing practical possibilities, timing, and actions without mentioning astrology, planets, charts, houses, dasha, or transits unless the user explicitly asks for the astrological explanation. Keep answers clear, structured, and crisp.`;
 
     try {
       if (activeCfg.llmProvider === 'fable') {

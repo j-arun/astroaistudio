@@ -1,11 +1,12 @@
 export type CardDomain =
-  | 'Career'
   | 'Love'
-  | 'Finance'
+  | 'Career'
+  | 'Financial'
   | 'Education'
   | 'Health'
   | 'Family'
-  | 'Travel';
+  | 'Travel'
+  | 'Finance';
 
 export type ThreadStep = 'narrative' | 'reading';
 

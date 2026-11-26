@@ -3,22 +3,35 @@
 
 @layer base {
   :root {
-    --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-display: 'DM Sans', system-ui, sans-serif;
     --font-sans: 'DM Sans', system-ui, sans-serif;
-    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    --font-mono: 'DM Sans', system-ui, sans-serif;
+  }
+
+  html,
+  body,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  input,
+  textarea,
+  select,
+  button,
+  .font-display,
+  .font-mono {
+    font-family: var(--font-sans);
   }
 
   body {
-    font-family: var(--font-sans);
     background-color: #111318;
     color: #EDEFF5;
   }
 
-  h1, h2, h3, h4, .font-display {
-    font-family: var(--font-display);
-  }
-
-  .font-mono, .tabular-nums {
+  .font-mono,
+  .tabular-nums {
     font-variant-numeric: tabular-nums;
   }
 }

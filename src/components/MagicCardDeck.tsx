@@ -12,6 +12,7 @@ import {
   formatMonthRangeLabel,
   getMonthBounds,
 } from '../data/sampleProfiles';
+import { getCardTheme } from '../data/cardThemes';
 
 export const MAX_MAGIC_CARDS = 3;
 
@@ -27,9 +28,9 @@ interface MagicCardDeckProps {
 }
 
 const DOMAINS: CardDomain[] = [
-  'Career',
   'Love',
-  'Finance',
+  'Career',
+  'Financial',
   'Education',
   'Health',
   'Family',
@@ -55,7 +56,7 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
 
   const [isFlipped, setIsFlipped] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [domain, setDomain] = useState<CardDomain>('Career');
+  const [domain, setDomain] = useState<CardDomain>('Love');
   const [title, setTitle] = useState('');
   const [eventDate, setEventDate] = useState(bounds.minDate);
   const [narrative, setNarrative] = useState('');
@@ -63,6 +64,8 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const isMaxReached = cards.length >= MAX_MAGIC_CARDS && !editingId;
+  const activeTheme = getCardTheme(domain);
+  const ActiveDomainIcon = activeTheme.icon;
 
   useEffect(() => {
     if (!editingId && isRangeValid) {
@@ -77,7 +80,7 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
 
   const resetDraft = () => {
     setEditingId(null);
-    setDomain('Career');
+    setDomain('Love');
     setTitle('');
     setEventDate(bounds.minDate);
     setNarrative('');
@@ -99,7 +102,9 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
 
   const handleFlipToQuestion = () => {
     if (isMaxReached) {
-      setErrorMsg(`Maximum ${MAX_MAGIC_CARDS} cards allowed. Edit a card in the tray or click Submit Cards.`);
+      setErrorMsg(
+        `Maximum ${MAX_MAGIC_CARDS} cards allowed. Edit a card in the stack or click Submit Cards.`
+      );
       return;
     }
     if (!title.trim() || !narrative.trim()) {
@@ -132,7 +137,7 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
       return;
     }
     if (!question.trim()) {
-      setErrorMsg('Write the question on the back of this card before adding to tray.');
+      setErrorMsg('Write the question on the back of this card before adding to stack.');
       return;
     }
 
@@ -155,7 +160,7 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
 
   const handleEditFromTray = (card: MagicCard) => {
     setEditingId(card.id);
-    setDomain(card.domain);
+    setDomain(card.domain === 'Finance' ? 'Financial' : card.domain);
     setTitle(card.title);
     setEventDate(card.eventDate);
     setNarrative(card.narrative);
@@ -180,7 +185,7 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
             Magic Cards · Up to 3 Cards Maximum
           </h2>
           <p className="text-xs text-[#8E95A5] mt-0.5">
-            Fill the event on the Front ({bounds.minDate} to {bounds.maxDate}), flip the card to ask your question, and submit up to 3 cards.
+            Choose a life theme, record what occurred ({bounds.minDate} to {bounds.maxDate}), flip to ask your question, and submit up to 3 cards.
           </p>
         </div>
         <span className="text-xs font-mono tabular-nums text-[#D4A853]">
@@ -188,14 +193,15 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
         </span>
       </div>
 
-      {/* 3D Flippable Magic Card Builder (or Max Reached Notice if not editing) */}
+      {/* 3D Flippable Translucent Glass Magic Card Builder */}
       {isMaxReached ? (
-        <div className="max-w-2xl mx-auto bg-[#181B22] border border-[#D4A853]/40 rounded-xl p-6 text-center space-y-2">
+        <div className="max-w-2xl mx-auto rounded-2xl border border-white/15 bg-white/[0.03] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_18px_40px_rgba(0,0,0,0.4)] p-6 text-center space-y-2">
           <p className="text-sm font-semibold text-[#EDEFF5]">
             3 / 3 Magic Cards Ready
           </p>
           <p className="text-xs text-[#8E95A5]">
-            Maximum 3 cards reached. Click any card in the tray below to edit it, or click <span className="text-[#D4A853] font-medium">Submit Cards</span>.
+            Maximum 3 cards reached. Click any card in the stack below to edit it, or click{' '}
+            <span className="text-[#D4A853] font-medium">Submit Cards</span>.
           </p>
         </div>
       ) : (
@@ -205,73 +211,90 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
               className={`relative w-full transition-transform duration-500 preserve-3d ${
                 isFlipped ? 'rotate-y-180' : ''
               }`}
-              style={{ minHeight: '340px' }}
+              style={{ minHeight: '352px' }}
             >
-              {/* FRONT FACE — PAST EVENT NARRATIVE */}
+              {/* FRONT FACE — TRANSLUCENT DOMAIN-THEMED GLASS CARD */}
               <div
-                className={`w-full rounded-xl bg-[#181B22] border border-[#2D3240] p-5 backface-hidden flex flex-col justify-between ${
+                className={`relative w-full overflow-hidden rounded-2xl border ${activeTheme.borderClass} ${activeTheme.surfaceGradient} shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_20px_50px_rgba(0,0,0,0.45)] p-5 backface-hidden flex flex-col justify-between transition-colors duration-300 ${
                   isFlipped ? 'pointer-events-none' : ''
                 }`}
+                style={{ backgroundImage: activeTheme.ambientGlow }}
               >
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between border-b border-[#262A34] pb-2.5">
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="font-mono text-[#D4A853] font-semibold">
-                        CARD {editingId ? 'EDIT' : `#${cards.length + 1}`} · FRONT
-                      </span>
-                      <span className="text-[#555C6E]">·</span>
-                      <span className="text-[#8E95A5]">Event Narrative</span>
-                    </div>
-                    {editingId && (
-                      <button
-                        type="button"
-                        onClick={resetDraft}
-                        className="text-xs text-[#8E95A5] hover:text-[#EDEFF5]"
+                <div className="space-y-4 relative z-10">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                    <div className="flex items-center gap-2.5 text-xs">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${activeTheme.badgeClass}`}
                       >
-                        Cancel Edit
-                      </button>
-                    )}
+                        <ActiveDomainIcon className="w-3.5 h-3.5" />
+                        <span>{activeTheme.label}</span>
+                      </span>
+                      <span className={`text-[11px] font-medium ${activeTheme.mutedAccentText}`}>
+                        {activeTheme.tagline}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {editingId && (
+                        <button
+                          type="button"
+                          onClick={resetDraft}
+                          className="text-xs text-white/60 hover:text-white transition-colors"
+                        >
+                          Cancel Edit
+                        </button>
+                      )}
+                      <span className="text-[11px] font-mono uppercase tracking-wider text-white/45">
+                        Front
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Domain Selector */}
+                  {/* Domain Theme Selector */}
                   <div>
-                    <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
-                      Domain
+                    <label className="block text-[11px] font-medium uppercase tracking-wider text-white/60 mb-2">
+                      Card Theme
                     </label>
                     <div className="flex flex-wrap gap-1.5">
-                      {DOMAINS.map((d) => (
-                        <button
-                          key={d}
-                          type="button"
-                          onClick={() => setDomain(d)}
-                          className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
-                            domain === d
-                              ? 'bg-[#D4A853] text-[#111318]'
-                              : 'bg-[#111318] text-[#B9C0D0] border border-[#262A34] hover:border-[#3A4152]'
-                          }`}
-                        >
-                          {d}
-                        </button>
-                      ))}
+                      {DOMAINS.map((d) => {
+                        const dTheme = getCardTheme(d);
+                        const DIcon = dTheme.icon;
+                        const selected =
+                          domain === d || (domain === 'Finance' && d === 'Financial');
+                        return (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => setDomain(d)}
+                            className={`px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-all whitespace-nowrap shrink-0 inline-flex items-center gap-1.5 ${
+                              selected
+                                ? dTheme.selectorActiveClass
+                                : 'bg-white/[0.03] text-white/70 border-white/10 hover:bg-white/[0.07] hover:text-white'
+                            }`}
+                          >
+                            <DIcon className="w-3 h-3" />
+                            <span>{dTheme.label}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
                   {/* Title + Typed Date */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
+                      <label className="block text-xs font-medium text-white/70 mb-1.5">
                         Event Name
                       </label>
                       <input
                         type="text"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
-                        placeholder="e.g., Saw crush at cafe / Borrowed 5k / Exam"
-                        className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-sm text-[#EDEFF5] placeholder-[#555C6E] outline-none transition-colors"
+                        placeholder="e.g., Saw crush at cafe / Bonus approval / Exam"
+                        className={`w-full bg-white/[0.04] backdrop-blur-md border border-white/10 ${activeTheme.focusBorderClass} rounded-lg px-3 py-2 text-xs text-[#EDEFF5] placeholder-white/30 outline-none transition-colors`}
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
+                      <label className="block text-xs font-medium text-white/70 mb-1.5">
                         Date (YYYY-MM-DD)
                       </label>
                       <input
@@ -279,14 +302,14 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                         value={eventDate}
                         onChange={(e) => setEventDate(e.target.value)}
                         placeholder="YYYY-MM-DD"
-                        className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs font-mono tabular-nums text-[#EDEFF5] placeholder-[#555C6E] outline-none transition-colors"
+                        className={`w-full bg-white/[0.04] backdrop-blur-md border border-white/10 ${activeTheme.focusBorderClass} rounded-lg px-3 py-2 text-xs tabular-nums text-[#EDEFF5] placeholder-white/30 outline-none transition-colors`}
                       />
                     </div>
                   </div>
 
                   {/* Narrative Details */}
                   <div>
-                    <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
+                    <label className="block text-xs font-medium text-white/70 mb-1.5">
                       What Happened
                     </label>
                     <textarea
@@ -294,21 +317,21 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                       value={narrative}
                       onChange={(e) => setNarrative(e.target.value)}
                       placeholder="Describe what happened during this past period..."
-                      className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-sm text-[#EDEFF5] placeholder-[#555C6E] outline-none transition-colors resize-none"
+                      className={`w-full bg-white/[0.04] backdrop-blur-md border border-white/10 ${activeTheme.focusBorderClass} rounded-lg px-3 py-2 text-xs leading-relaxed text-[#EDEFF5] placeholder-white/30 outline-none transition-colors resize-none`}
                     />
                   </div>
 
-                  {errorMsg && !isFlipped && <p className="text-xs text-red-400">{errorMsg}</p>}
+                  {errorMsg && !isFlipped && <p className="text-xs text-red-300">{errorMsg}</p>}
                 </div>
 
-                <div className="flex items-center justify-between pt-4 mt-4 border-t border-[#262A34]">
-                  <span className="text-[11px] font-mono text-[#6C7384]">
+                <div className="relative z-10 flex items-center justify-between pt-4 mt-4 border-t border-white/10">
+                  <span className="text-[11px] font-mono text-white/45">
                     {bounds.minDate} .. {bounds.maxDate}
                   </span>
                   <button
                     type="button"
                     onClick={handleFlipToQuestion}
-                    className="px-4 py-2 text-xs font-semibold bg-[#D4A853] hover:bg-[#DFB96B] text-[#111318] rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap shrink-0"
+                    className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap shrink-0 shadow-sm ${activeTheme.buttonClass}`}
                   >
                     <span>Flip Card for Question</span>
                     <RotateCw className="w-3.5 h-3.5" />
@@ -316,64 +339,73 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                 </div>
               </div>
 
-              {/* BACK FACE — QUESTION SIDE */}
+              {/* BACK FACE — QUESTION SIDE (SAME TRANSLUCENT THEME) */}
               <div
-                className={`absolute inset-0 w-full rounded-xl bg-[#1A1E27] border border-[#D4A853]/40 p-5 backface-hidden rotate-y-180 flex flex-col justify-between ${
+                className={`absolute inset-0 w-full overflow-hidden rounded-2xl border ${activeTheme.activeBorderClass} ${activeTheme.backSurfaceGradient} shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_20px_50px_rgba(0,0,0,0.48)] p-5 backface-hidden rotate-y-180 flex flex-col justify-between ${
                   !isFlipped ? 'pointer-events-none' : ''
                 }`}
+                style={{ backgroundImage: activeTheme.ambientGlow }}
               >
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between border-b border-[#262A34] pb-2.5">
+                <div className="space-y-4 relative z-10">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
                     <div className="flex items-center gap-2 text-xs">
-                      <span className="font-mono text-[#D4A853] font-semibold">BACK SIDE</span>
-                      <span className="text-[#555C6E]">·</span>
-                      <span className="text-[#8E95A5]">Your Question</span>
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${activeTheme.badgeClass}`}
+                      >
+                        <ActiveDomainIcon className="w-3.5 h-3.5" />
+                        <span>{activeTheme.label}</span>
+                      </span>
+                      <span className="text-[11px] font-mono uppercase tracking-wider text-white/50">
+                        Back · Question
+                      </span>
                     </div>
                     <button
                       type="button"
                       onClick={() => setIsFlipped(false)}
-                      className="text-xs text-[#B9C0D0] hover:text-[#EDEFF5] flex items-center gap-1"
+                      className="text-xs text-white/75 hover:text-white flex items-center gap-1 transition-colors"
                     >
                       <ArrowLeft className="w-3 h-3" />
                       Flip to Front
                     </button>
                   </div>
 
-                  <div className="bg-[#111318] border border-[#262A34] rounded-lg px-3.5 py-2.5">
-                    <div className="flex items-center gap-2 text-xs text-[#8E95A5]">
-                      <span className="text-[#D4A853] font-medium">{domain}</span>
+                  <div className="bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-xl px-3.5 py-2.5">
+                    <div className="flex items-center gap-2 text-xs text-white/60">
+                      <span className={`font-medium ${activeTheme.accentText}`}>
+                        {activeTheme.label}
+                      </span>
                       <span>·</span>
                       <span className="font-mono tabular-nums">{eventDate}</span>
                     </div>
-                    <p className="text-sm font-medium text-[#EDEFF5] mt-0.5 truncate">
+                    <p className="text-xs font-semibold text-[#EDEFF5] mt-0.5 truncate">
                       {title || 'Untitled Event'}
                     </p>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-[#EDEFF5] mb-1.5">
+                    <label className="block text-xs font-medium text-white/85 mb-1.5">
                       Question for the Future Target Period
                     </label>
                     <textarea
                       rows={4}
                       value={question}
                       onChange={(e) => setQuestion(e.target.value)}
-                      placeholder="e.g., Will I see this crush again? / Will my friend ask for the 5k back?"
-                      className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3.5 py-2.5 text-sm text-[#EDEFF5] placeholder-[#555C6E] outline-none transition-colors resize-none"
+                      placeholder="e.g., Will I see this crush again? / Will this role bring growth?"
+                      className={`w-full bg-white/[0.04] backdrop-blur-md border border-white/10 ${activeTheme.focusBorderClass} rounded-lg px-3.5 py-2.5 text-xs leading-relaxed text-[#EDEFF5] placeholder-white/30 outline-none transition-colors resize-none`}
                     />
                   </div>
 
-                  {errorMsg && isFlipped && <p className="text-xs text-red-400">{errorMsg}</p>}
+                  {errorMsg && isFlipped && <p className="text-xs text-red-300">{errorMsg}</p>}
                 </div>
 
-                <div className="flex items-center justify-between pt-4 mt-4 border-t border-[#262A34]">
-                  <span className="text-xs text-[#8E95A5]">
+                <div className="relative z-10 flex items-center justify-between pt-4 mt-4 border-t border-white/10">
+                  <span className="text-xs text-white/55 font-mono tabular-nums">
                     {cards.length} / {MAX_MAGIC_CARDS} cards
                   </span>
                   <button
                     type="button"
                     onClick={handlePushToTray}
-                    className="px-4 py-2 text-xs font-semibold bg-[#D4A853] hover:bg-[#DFB96B] text-[#111318] rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap shrink-0"
+                    className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap shrink-0 shadow-sm ${activeTheme.buttonClass}`}
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>{editingId ? 'Update Card' : 'Add Card to Stack'}</span>
@@ -385,8 +417,8 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
         </div>
       )}
 
-      {/* CARD TRAY + SUBMIT CARDS */}
-      <div className="bg-[#181B22] border border-[#262A34] rounded-xl p-4 space-y-3">
+      {/* TRANSPARENT GLASS CARD STACK + SUBMIT CARDS */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.025] backdrop-blur-xl p-4 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Layers className="w-4 h-4 text-[#D4A853]" />
@@ -412,47 +444,56 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
         </div>
 
         {cards.length === 0 ? (
-          <div className="border border-dashed border-[#2A2F3B] rounded-lg py-5 text-center">
+          <div className="border border-dashed border-white/15 rounded-xl py-5 text-center bg-white/[0.015]">
             <p className="text-xs text-[#8E95A5]">
-              No cards added yet. Fill a card above, flip it to ask your question, and add up to 3 cards.
+              No cards added yet. Fill a themed card above, flip it to ask your question, and add up to 3 cards.
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            {cards.map((card, index) => (
-              <div
-                key={card.id}
-                onClick={() => handleEditFromTray(card)}
-                className={`group cursor-pointer rounded-lg border p-3 transition-colors ${
-                  editingId === card.id
-                    ? 'bg-[#222631] border-[#D4A853]/60'
-                    : 'bg-[#111318] border-[#262A34] hover:border-[#3A4152]'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2 text-[11px] text-[#8E95A5] mb-1">
-                  <div className="flex items-center gap-1.5 truncate">
-                    <span className="font-mono text-[#D4A853]">#{index + 1}</span>
-                    <span>·</span>
-                    <span>{card.domain}</span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {cards.map((card) => {
+              const cTheme = getCardTheme(card.domain);
+              const CardIcon = cTheme.icon;
+              const isEditing = editingId === card.id;
+              return (
+                <div
+                  key={card.id}
+                  onClick={() => handleEditFromTray(card)}
+                  className={`group cursor-pointer relative overflow-hidden rounded-xl border p-3.5 transition-all ${
+                    cTheme.surfaceGradient
+                  } ${
+                    isEditing ? cTheme.activeBorderClass : `${cTheme.borderClass} hover:border-white/30`
+                  } shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_24px_rgba(0,0,0,0.3)]`}
+                  style={{ backgroundImage: cTheme.ambientGlow }}
+                >
+                  <div className="relative z-10 flex items-center justify-between gap-2 text-[11px] mb-2">
+                    <span
+                      className={`inline-flex items-center gap-1.5 font-medium ${cTheme.accentText}`}
+                    >
+                      <CardIcon className="w-3.5 h-3.5" />
+                      <span>{cTheme.label}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveFromTray(card.id);
+                      }}
+                      title="Remove card"
+                      className="text-white/45 hover:text-red-300 p-0.5 rounded transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveFromTray(card.id);
-                    }}
-                    title="Remove card"
-                    className="text-[#6C7384] hover:text-red-400 p-0.5 rounded transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <p className="relative z-10 text-xs font-semibold text-[#EDEFF5] truncate">
+                    {card.title}
+                  </p>
+                  <p className="relative z-10 text-[11px] text-white/65 line-clamp-1 mt-1">
+                    Q: {card.question}
+                  </p>
                 </div>
-                <p className="text-xs font-semibold text-[#EDEFF5] truncate">{card.title}</p>
-                <p className="text-[11px] text-[#8E95A5] line-clamp-1 mt-1">
-                  Q: {card.question}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -3,6 +3,8 @@ import { motion } from 'motion/react';
 import {
   Check,
   ChevronDown,
+  ChevronUp,
+  Copy,
   Plus,
   Settings2,
   Sparkles,
@@ -29,6 +31,8 @@ import {
 import { MagicCardDeck } from './components/MagicCardDeck';
 import { OpenedCardSpread } from './components/OpenedCardSpread';
 import { NatalConfigModal } from './components/NatalConfigModal';
+import { buildAnalyzePromptParts } from './data/promptBuilder';
+import { getCardTheme } from './data/cardThemes';
 
 const STORAGE_PROFILES_KEY = 'astro_studio_profiles_v2';
 const STORAGE_THREADS_KEY = 'astro_studio_threads_v2';
@@ -126,6 +130,8 @@ export default function App() {
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [isSendingChat, setIsSendingChat] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [showFullPromptPreview, setShowFullPromptPreview] = useState(false);
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -223,6 +229,59 @@ export default function App() {
         : [],
     [savedThreads, activeProfile]
   );
+
+  const fullConsultingPrompt = useMemo(() => {
+    if (!activeProfile) return null;
+    return buildAnalyzePromptParts({
+      profileName: activeProfile.name,
+      natalDump: activeProfile.natalDump,
+      narrativeWindow: activeThread.narrativeWindow,
+      cards: activeThread.cards,
+      futureWindow: activeThread.futureWindow,
+    });
+  }, [
+    activeProfile,
+    activeThread.narrativeWindow,
+    activeThread.cards,
+    activeThread.futureWindow,
+  ]);
+
+  const handleCopyFullPrompt = async () => {
+    if (!fullConsultingPrompt) return;
+    const textToCopy = fullConsultingPrompt.fullCombinedPrompt;
+    let copied = false;
+
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(textToCopy);
+        copied = true;
+      }
+    } catch {
+      copied = false;
+    }
+
+    if (!copied) {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = textToCopy;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        textarea.style.top = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        copied = document.execCommand('copy');
+        document.body.removeChild(textarea);
+      } catch {
+        copied = false;
+      }
+    }
+
+    if (copied) {
+      setCopiedPrompt(true);
+      window.setTimeout(() => setCopiedPrompt(false), 2200);
+    }
+  };
 
   const persistProfiles = async (nextProfiles: AstroProfile[]) => {
     setProfiles(nextProfiles);
@@ -878,11 +937,6 @@ export default function App() {
                 : `${activeProfile.name} (${activeProfile.personId})`
               : 'Profile Setup Required'}
           </span>
-          {activeProfile && parsedNatal && (
-            <span className="text-[11px] font-mono text-[#6C7384]">
-              {parsedNatal.currentDasha}
-            </span>
-          )}
         </header>
 
         {/* Scrollable Content */}
@@ -914,6 +968,8 @@ export default function App() {
                   {activeThread.cards.map((card, idx) => {
                     const total = activeThread.cards.length;
                     const offset = idx - (total - 1) / 2;
+                    const cTheme = getCardTheme(card.domain);
+                    const CardIcon = cTheme.icon;
                     return (
                       <motion.div
                         key={card.id}
@@ -930,16 +986,22 @@ export default function App() {
                           ease: 'easeInOut',
                           delay: idx * 0.18,
                         }}
-                        className="absolute w-52 h-36 rounded-xl bg-[#1A1E27] border border-[#D4A853]/60 p-4 shadow-2xl flex flex-col justify-between"
+                        className={`absolute w-56 h-36 overflow-hidden rounded-2xl border p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_20px_45px_rgba(0,0,0,0.45)] flex flex-col justify-between ${cTheme.surfaceGradient} ${cTheme.activeBorderClass}`}
+                        style={{ backgroundImage: cTheme.ambientGlow }}
                       >
-                        <div className="flex items-center justify-between text-[10px] font-mono text-[#D4A853]">
-                          <span>CARD #{idx + 1}</span>
-                          <span>{card.domain}</span>
+                        <div className="relative z-10 flex items-center justify-between text-[11px]">
+                          <span className={`inline-flex items-center gap-1.5 font-medium ${cTheme.accentText}`}>
+                            <CardIcon className="w-3.5 h-3.5" />
+                            <span>{cTheme.label}</span>
+                          </span>
+                          <span className="font-mono text-[10px] text-white/50">
+                            {card.eventDate}
+                          </span>
                         </div>
-                        <div className="text-xs font-semibold text-[#EDEFF5] line-clamp-2">
+                        <div className="relative z-10 text-xs font-semibold text-[#EDEFF5] line-clamp-2">
                           {card.title}
                         </div>
-                        <div className="text-[10px] text-[#8E95A5] line-clamp-1">
+                        <div className="relative z-10 text-[10px] text-white/65 line-clamp-1">
                           {card.question}
                         </div>
                       </motion.div>
@@ -947,15 +1009,27 @@ export default function App() {
                   })}
                 </div>
 
-                <div className="text-center space-y-1.5">
+                <div className="text-center space-y-1.5 max-w-lg mx-auto">
                   <div className="inline-flex items-center gap-2 text-sm font-semibold text-[#EDEFF5]">
                     <Sparkles className="w-4 h-4 text-[#D4A853] animate-pulse" />
                     <span>
-                      Consulting {apiConfig.llmProvider === 'fable' ? 'Fable' : 'Gemini'} Engine...
+                      Exploring Realistic Possibilities (
+                      {formatMonthRangeLabel(
+                        activeThread.futureWindow.startMonth,
+                        activeThread.futureWindow.endMonth
+                      )}
+                      )...
                     </span>
                   </div>
-                  <p className="text-xs text-[#8E95A5]">
-                    Cross-checking Natal D1–D144, Past Calibration ({formatMonthRangeLabel(activeThread.narrativeWindow.startMonth, activeThread.narrativeWindow.endMonth)}), and Future Transits ({formatMonthRangeLabel(activeThread.futureWindow.startMonth, activeThread.futureWindow.endMonth)})
+                  <p className="text-xs text-[#8E95A5] leading-relaxed">
+                    Evaluating realistic scenarios and activities that can manifest from{' '}
+                    {formatYearMonthToLongLabel(activeThread.futureWindow.startMonth)} to{' '}
+                    {formatYearMonthToLongLabel(activeThread.futureWindow.endMonth)} based on your{' '}
+                    {formatMonthRangeLabel(
+                      activeThread.narrativeWindow.startMonth,
+                      activeThread.narrativeWindow.endMonth
+                    )}{' '}
+                    events.
                   </p>
                 </div>
               </div>
@@ -1206,6 +1280,98 @@ export default function App() {
             )}
           </div>
         </div>
+
+        {/* BOTTOM COMPLETE-PROMPT BAR (CONSULTING STATE + READING INSPECTOR) */}
+        {activeProfile &&
+          fullConsultingPrompt &&
+          (isAnalyzing || activeThread.step === 'reading') && (
+            <div className="shrink-0 border-t border-[#262A34] bg-[#14171D]">
+              {showFullPromptPreview && (
+                <div className="border-b border-[#262A34] bg-[#0E1015] px-6 py-3">
+                  <div className="max-w-4xl mx-auto">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-mono uppercase tracking-wider text-[#D4A853]">
+                        Complete 3-Fold Prompt Dump (System + Natal + Past + Cards + Future)
+                      </span>
+                      <span className="text-[11px] font-mono tabular-nums text-[#6C7384]">
+                        {fullConsultingPrompt.fullCombinedPrompt.length.toLocaleString()} chars · ~
+                        {Math.ceil(fullConsultingPrompt.fullCombinedPrompt.length / 4).toLocaleString()} tok
+                      </span>
+                    </div>
+                    <pre className="max-h-72 overflow-y-auto rounded-lg border border-[#262A34] bg-[#111318] p-3 text-[11px] leading-relaxed font-mono text-[#C8CDD8] whitespace-pre-wrap break-words select-all">
+                      {fullConsultingPrompt.fullCombinedPrompt}
+                    </pre>
+                  </div>
+                </div>
+              )}
+
+              <div className="px-6 py-2.5">
+                <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
+                  <div className="min-w-0 flex items-center gap-3">
+                    <span className="inline-flex items-center gap-1.5 shrink-0 text-[11px] font-mono uppercase tracking-wider text-[#D4A853]">
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          isAnalyzing ? 'bg-[#D4A853] animate-pulse' : 'bg-emerald-400'
+                        }`}
+                      />
+                      {isAnalyzing ? 'Consulting Prompt' : 'Complete Prompt'}
+                    </span>
+                    <span className="hidden sm:inline text-[11px] font-mono tabular-nums text-[#6C7384] shrink-0">
+                      {fullConsultingPrompt.fullCombinedPrompt.length.toLocaleString()} chars
+                    </span>
+                    <span className="text-xs font-mono text-[#8E95A5] truncate">
+                      {fullConsultingPrompt.userPrompt.replace(/\s+/g, ' ').slice(0, 140)}…
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowFullPromptPreview((v) => !v)}
+                      className="px-2.5 py-1.5 rounded-lg border border-[#262A34] bg-[#181B22] hover:bg-[#1E222B] text-[11px] font-medium text-[#B9C0D0] inline-flex items-center gap-1.5 transition-colors"
+                      title={showFullPromptPreview ? 'Hide complete prompt' : 'View complete prompt'}
+                    >
+                      {showFullPromptPreview ? (
+                        <>
+                          <ChevronDown className="w-3.5 h-3.5" />
+                          <span>Hide Prompt</span>
+                        </>
+                      ) : (
+                        <>
+                          <ChevronUp className="w-3.5 h-3.5" />
+                          <span>View Prompt</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCopyFullPrompt}
+                      title="Copy entire constructed prompt dump to clipboard"
+                      aria-label="Copy entire constructed prompt dump to clipboard"
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-medium inline-flex items-center gap-1.5 transition-colors ${
+                        copiedPrompt
+                          ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300'
+                          : 'border-[#D4A853]/40 bg-[#D4A853]/10 hover:bg-[#D4A853]/20 text-[#D4A853]'
+                      }`}
+                    >
+                      {copiedPrompt ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy Prompt</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
       </main>
 
       {modalMode && (

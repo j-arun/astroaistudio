@@ -1,8 +1,17 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowRight, Calendar, Layers, Send, Sparkles } from 'lucide-react';
+import {
+  ArrowRight,
+  BookOpen,
+  Calendar,
+  Layers,
+  Send,
+  Sparkles,
+  X,
+} from 'lucide-react';
 import { AstroThread } from '../types/astro';
 import { formatMonthRangeLabel } from '../data/sampleProfiles';
+import { getCardTheme } from '../data/cardThemes';
 
 interface OpenedCardSpreadProps {
   thread: AstroThread;
@@ -19,6 +28,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [draftMessage, setDraftMessage] = useState('');
+  const [reasoningModalOpen, setReasoningModalOpen] = useState(false);
 
   const pastLabel = formatMonthRangeLabel(
     thread.narrativeWindow.startMonth,
@@ -30,6 +40,8 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
   );
 
   const activeCard = thread.cards[selectedIndex] || thread.cards[0];
+  const activeTheme = activeCard ? getCardTheme(activeCard.domain) : null;
+  const ActiveDomainIcon = activeTheme?.icon;
 
   const handleSubmitChat = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,164 +53,205 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
 
   return (
     <div className="space-y-6 pb-6">
-      {/* Macro Synthesis Header */}
-      <div className="bg-[#181B22] border border-[#262A34] rounded-xl p-4 space-y-2">
+      {/* Macro Realistic Outlook Header */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-4 space-y-2">
         <div className="flex flex-wrap items-center gap-2 text-xs text-[#8E95A5]">
-          <span className="text-[#D4A853] font-semibold">3-Fold Reading</span>
+          <h2 className="text-sm font-semibold text-[#D4A853]">Period Outlook</h2>
           <span aria-hidden="true">·</span>
-          <span>{pastLabel}</span>
+          <span className="tabular-nums">{pastLabel}</span>
           <ArrowRight className="w-3 h-3 text-[#6C7384]" />
-          <span className="text-[#EDEFF5] font-medium">{futureLabel}</span>
+          <span className="text-[#EDEFF5] font-medium tabular-nums">{futureLabel}</span>
           <span aria-hidden="true">·</span>
-          <span className="font-mono tabular-nums">{thread.cards.length} Stacked Cards</span>
+          <span className="tabular-nums">{thread.cards.length} Cards</span>
         </div>
 
         {thread.overallSynthesis && (
-          <p className="text-sm leading-relaxed text-[#D8DCE6]">{thread.overallSynthesis}</p>
+          <p className="text-xs leading-relaxed text-[#D8DCE6]">{thread.overallSynthesis}</p>
         )}
       </div>
 
-      {/* Stacked Cards Selector + Focused Individual Card Reader */}
-      {thread.cards.length > 0 && activeCard && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          {/* Left: Interactive Stacked Card Deck (Click any card to read it) */}
-          <div className="lg:col-span-4 space-y-2.5">
-            <div className="flex items-center justify-between text-xs text-[#8E95A5] px-1">
-              <span className="flex items-center gap-1.5 font-medium text-[#EDEFF5]">
-                <Layers className="w-3.5 h-3.5 text-[#D4A853]" />
-                Stacked Cards
-              </span>
-              <span className="font-mono text-[11px]">Click to inspect</span>
+      {/* Stacked Cards Selector + Focused Real-World Reasoning Card */}
+      {thread.cards.length > 0 && activeCard && activeTheme && ActiveDomainIcon && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+            {/* Left: Interactive Stacked Card Deck */}
+            <div className="lg:col-span-4 space-y-2.5">
+              <div className="flex items-center justify-between text-xs text-[#8E95A5] px-1">
+                <h3 className="flex items-center gap-1.5 text-sm font-semibold text-[#EDEFF5]">
+                  <Layers className="w-3.5 h-3.5 text-[#D4A853]" />
+                  <span>Stacked Cards</span>
+                </h3>
+                <span className="text-[11px]">Click to inspect</span>
+              </div>
+
+              <div className="space-y-2.5">
+                {thread.cards.map((card, idx) => {
+                  const isActive = idx === selectedIndex;
+                  const cardTheme = getCardTheme(card.domain);
+                  const CardIcon = cardTheme.icon;
+                  return (
+                    <motion.button
+                      key={card.id}
+                      type="button"
+                      onClick={() => setSelectedIndex(idx)}
+                      whileHover={{ x: isActive ? 0 : 4 }}
+                      transition={{ duration: 0.16 }}
+                      className={`w-full text-left relative overflow-hidden rounded-2xl p-3.5 border transition-all ${
+                        cardTheme.surfaceGradient
+                      } ${
+                        isActive
+                          ? cardTheme.activeBorderClass
+                          : `${cardTheme.borderClass} opacity-80 hover:opacity-100`
+                      } shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_12px_28px_rgba(0,0,0,0.35)]`}
+                      style={{ backgroundImage: cardTheme.ambientGlow }}
+                    >
+                      <div className="relative z-10 flex items-center justify-between text-[11px] mb-1.5">
+                        <span
+                          className={`inline-flex items-center gap-1.5 font-semibold ${cardTheme.accentText}`}
+                        >
+                          <CardIcon className="w-3.5 h-3.5" />
+                          <span>{cardTheme.label}</span>
+                        </span>
+                        <span className="tabular-nums text-white/55">
+                          {card.eventDate}
+                        </span>
+                      </div>
+                      <div className="relative z-10 text-xs font-semibold text-[#EDEFF5] truncate">
+                        {card.title}
+                      </div>
+                      <div className="relative z-10 text-xs leading-relaxed text-white/65 line-clamp-2 mt-1">
+                        Q: {card.question}
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="space-y-2">
-              {thread.cards.map((card, idx) => {
-                const isActive = idx === selectedIndex;
-                return (
-                  <motion.button
-                    key={card.id}
-                    type="button"
-                    onClick={() => setSelectedIndex(idx)}
-                    whileHover={{ x: isActive ? 0 : 4 }}
-                    transition={{ duration: 0.16 }}
-                    className={`w-full text-left rounded-xl p-3.5 border transition-colors relative ${
-                      isActive
-                        ? 'bg-[#1E222D] border-[#D4A853] shadow-lg'
-                        : 'bg-[#161920] border-[#262A34] hover:border-[#3A4152]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between text-[11px] text-[#8E95A5] mb-1">
-                      <span className="font-mono font-semibold text-[#D4A853]">
-                        Card #{idx + 1} · {card.domain}
+            {/* Right: Active Card Real-World Scenario & Practical Guidance */}
+            <div className="lg:col-span-8 space-y-3">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeCard.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.2 }}
+                  className={`relative overflow-hidden rounded-2xl border ${activeTheme.activeBorderClass} ${activeTheme.surfaceGradient} shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_20px_50px_rgba(0,0,0,0.45)] p-6 space-y-4`}
+                  style={{ backgroundImage: activeTheme.ambientGlow }}
+                >
+                  {/* Card Header */}
+                  <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
+                    <div className="flex items-center gap-2.5 text-xs">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold ${activeTheme.badgeClass}`}
+                      >
+                        <ActiveDomainIcon className="w-3.5 h-3.5" />
+                        <span>{activeTheme.label}</span>
                       </span>
-                      <span className="font-mono tabular-nums">{card.eventDate}</span>
+                      <span className={`text-[11px] font-medium ${activeTheme.mutedAccentText}`}>
+                        {activeTheme.tagline}
+                      </span>
+                      <span className="text-white/30">·</span>
+                      <span className="text-[11px] tabular-nums text-white/65 inline-flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {activeCard.eventDate}
+                      </span>
                     </div>
-                    <div className="text-sm font-semibold text-[#EDEFF5] truncate">
-                      {card.title}
-                    </div>
-                    <div className="text-xs text-[#8E95A5] line-clamp-2 mt-1">
-                      Q: {card.question}
-                    </div>
-                  </motion.button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Right: Active Card Full Question & LLM Answer */}
-          <div className="lg:col-span-8">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeCard.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.2 }}
-                className="bg-[#181B22] border border-[#2D3240] rounded-xl p-6 space-y-5"
-              >
-                {/* Card Header */}
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#262A34] pb-3">
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="font-mono font-semibold text-[#D4A853]">
-                      CARD #{selectedIndex + 1}
-                    </span>
-                    <span className="text-[#555C6E]">·</span>
-                    <span className="font-medium text-[#EDEFF5]">{activeCard.domain}</span>
-                    <span className="text-[#555C6E]">·</span>
-                    <span className="font-mono tabular-nums text-[#8E95A5] inline-flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
-                      {activeCard.eventDate}
-                    </span>
+                    {activeCard.reading?.timingWindow && (
+                      <span
+                        className={`text-[11px] font-medium tabular-nums ${activeTheme.accentText}`}
+                      >
+                        Window: {activeCard.reading.timingWindow}
+                      </span>
+                    )}
                   </div>
-                  {activeCard.reading?.timingWindow && (
-                    <span className="text-[11px] font-mono tabular-nums text-[#D4A853]">
-                      Peak: {activeCard.reading.timingWindow}
-                    </span>
+
+                  {/* Past Event Narrative */}
+                  <div className="relative z-10 bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-xl p-3.5 space-y-1">
+                    <h4 className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
+                      Past Event
+                    </h4>
+                    <div className="text-xs font-semibold text-[#EDEFF5]">{activeCard.title}</div>
+                    <p className="text-xs text-white/75 leading-relaxed">{activeCard.narrative}</p>
+                  </div>
+
+                  {/* Question Asked */}
+                  <div className="relative z-10 space-y-1">
+                    <h4
+                      className={`text-[11px] font-semibold uppercase tracking-wider ${activeTheme.mutedAccentText}`}
+                    >
+                      Question
+                    </h4>
+                    <p className="text-xs font-medium text-[#EDEFF5] leading-relaxed">
+                      {activeCard.question}
+                    </p>
+                  </div>
+
+                  {/* Real-World Scenario Answer */}
+                  {activeCard.reading ? (
+                    <div className="relative z-10 border-t border-white/10 pt-4 space-y-3">
+                      <h4
+                        className={`flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider ${activeTheme.accentText}`}
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Realistic Outlook</span>
+                      </h4>
+                      <p className="text-xs leading-relaxed text-[#EDEFF5]">
+                        {activeCard.reading.verdictSummary}
+                      </p>
+                      <div className="bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-xl p-3 space-y-1">
+                        <h4
+                          className={`text-[11px] font-semibold uppercase tracking-wider ${activeTheme.accentText}`}
+                        >
+                          Practical Guidance
+                        </h4>
+                        <p className="text-xs text-white/80 leading-relaxed">
+                          {activeCard.reading.guidance}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="relative z-10 text-xs text-white/60">
+                      No outlook attached to this card.
+                    </p>
                   )}
-                </div>
+                </motion.div>
+              </AnimatePresence>
 
-                {/* Front: Past Event Narrative */}
-                <div className="bg-[#111318] border border-[#262A34] rounded-lg p-3.5 space-y-1">
-                  <div className="text-[11px] font-mono text-[#6C7384]">
-                    FRONT · PAST EVENT NARRATIVE
-                  </div>
-                  <div className="text-sm font-semibold text-[#EDEFF5]">{activeCard.title}</div>
-                  <p className="text-xs text-[#A1A8B8] leading-relaxed">{activeCard.narrative}</p>
+              {/* Separate Astrological Reasoning Button Below the Reasoning Card */}
+              {activeCard.reading?.planetaryTriggers && (
+                <div className="flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setReasoningModalOpen(true)}
+                    className="px-4 py-2 rounded-xl border border-white/15 bg-white/[0.04] hover:bg-white/[0.08] text-xs font-medium text-[#D4A853] inline-flex items-center gap-2 transition-colors backdrop-blur-md"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>Astrological Reasoning — Why This Outlook</span>
+                  </button>
                 </div>
-
-                {/* Back: Question Asked */}
-                <div className="space-y-1">
-                  <div className="text-[11px] font-mono text-[#D4A853]">
-                    BACK · QUESTION ASKED
-                  </div>
-                  <p className="text-base font-medium text-[#EDEFF5] leading-snug">
-                    {activeCard.question}
-                  </p>
-                </div>
-
-                {/* LLM Answer */}
-                {activeCard.reading ? (
-                  <div className="border-t border-[#262A34] pt-4 space-y-3">
-                    <div className="flex items-center gap-1.5 text-xs font-mono text-[#D4A853]">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>LLM ENGINE READING</span>
-                    </div>
-                    <p className="text-sm leading-relaxed text-[#EDEFF5]">
-                      {activeCard.reading.verdictSummary}
-                    </p>
-                    <div className="bg-[#111318] border border-[#262A34] rounded-lg p-3 text-xs text-[#B9C0D0] leading-relaxed">
-                      <span className="font-semibold text-[#EDEFF5]">Planetary Triggers: </span>
-                      {activeCard.reading.planetaryTriggers}
-                    </div>
-                    <p className="text-xs text-[#C8CEDB] leading-relaxed">
-                      <span className="font-semibold text-[#D4A853]">Guidance: </span>
-                      {activeCard.reading.guidance}
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-xs text-[#8E95A5]">No reading attached to this card.</p>
-                )}
-              </motion.div>
-            </AnimatePresence>
+              )}
+            </div>
           </div>
         </div>
       )}
 
       {/* Flowing Thread Follow-Up Conversation */}
-      <div className="bg-[#181B22] border border-[#262A34] rounded-xl p-5 space-y-4">
-        <div className="border-b border-[#262A34] pb-3">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.025] backdrop-blur-xl p-5 space-y-4">
+        <div className="border-b border-white/10 pb-3 space-y-0.5">
           <h3 className="text-sm font-semibold text-[#EDEFF5]">
             Follow-Up Questions
           </h3>
           <p className="text-xs text-[#8E95A5]">
-            All 3 folds (Session Natal + Past Narrative Cards + Future Transits) stay active for this thread.
+            Your past events, baseline context, and target period stay active for realistic follow-up questions.
           </p>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           {thread.messages.length === 0 ? (
             <p className="text-xs text-[#8E95A5] py-1">
-              Ask a follow-up referencing Card #1, Card #2, or Card #3.
+              Ask a follow-up about any realistic possibility, timing, or next step for your cards.
             </p>
           ) : (
             thread.messages.map((msg) => (
@@ -207,18 +260,18 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-2xl rounded-xl px-4 py-3 text-sm leading-relaxed ${
+                  className={`max-w-2xl rounded-xl px-4 py-3 text-xs leading-relaxed ${
                     msg.role === 'user'
                       ? 'bg-[#262B38] text-[#EDEFF5] border border-[#353C4E]'
                       : 'bg-[#111318] text-[#D8DCE6] border border-[#262A34]'
                   }`}
                 >
                   <div className="flex items-center gap-2 text-[11px] text-[#8E95A5] mb-1">
-                    <span className={msg.role === 'assistant' ? 'text-[#D4A853] font-medium' : 'font-medium'}>
-                      {msg.role === 'user' ? 'You' : 'Astro AI'}
+                    <span className={msg.role === 'assistant' ? 'text-[#D4A853] font-semibold' : 'font-semibold'}>
+                      {msg.role === 'user' ? 'You' : 'Outlook Assistant'}
                     </span>
                     <span>·</span>
-                    <span className="font-mono tabular-nums">
+                    <span className="tabular-nums">
                       {new Date(msg.timestamp).toLocaleTimeString([], {
                         hour: '2-digit',
                         minute: '2-digit',
@@ -234,7 +287,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
           {isSendingChat && (
             <div className="flex justify-start">
               <div className="bg-[#111318] border border-[#262A34] rounded-xl px-4 py-3 text-xs text-[#8E95A5]">
-                Analyzing follow-up across all 3 folds...
+                Evaluating realistic scenarios for your follow-up...
               </div>
             </div>
           )}
@@ -246,7 +299,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
           )}
         </div>
 
-        <form onSubmit={handleSubmitChat} className="flex items-end gap-2 pt-2 border-t border-[#262A34]">
+        <form onSubmit={handleSubmitChat} className="flex items-end gap-2 pt-2 border-t border-white/10">
           <textarea
             rows={2}
             value={draftMessage}
@@ -257,8 +310,12 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                 handleSubmitChat(e);
               }
             }}
-            placeholder={`Ask a follow-up on Card #${selectedIndex + 1} or compare cards...`}
-            className="flex-1 bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3.5 py-2.5 text-sm text-[#EDEFF5] placeholder-[#555C6E] outline-none transition-colors resize-none"
+            placeholder={
+              activeCard
+                ? `Ask a follow-up on ${activeCard.domain} (${activeCard.title})...`
+                : 'Ask a follow-up across your cards...'
+            }
+            className="flex-1 bg-white/[0.04] border border-white/10 focus:border-[#D4A853] rounded-lg px-3.5 py-2.5 text-xs leading-relaxed text-[#EDEFF5] placeholder-[#555C6E] outline-none transition-colors resize-none"
           />
           <button
             type="submit"
@@ -270,6 +327,130 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
           </button>
         </form>
       </div>
+
+      {/* SEPARATE WINDOW: ASTROLOGICAL REASONING MODAL */}
+      {reasoningModalOpen && activeCard && activeTheme && ActiveDomainIcon && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+          onClick={() => setReasoningModalOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl border border-white/15 bg-[#161922] shadow-2xl overflow-hidden"
+          >
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-[#12151C]">
+              <div className="flex items-center gap-2.5">
+                <BookOpen className="w-4 h-4 text-[#D4A853]" />
+                <div>
+                  <h3 className="text-sm font-semibold text-[#EDEFF5]">
+                    Astrological Reasoning
+                  </h3>
+                  <p className="text-[11px] text-[#8E95A5]">
+                    Detailed Jyotish basis behind the real-world outlook
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReasoningModalOpen(false)}
+                className="p-1.5 rounded-lg text-[#8E95A5] hover:text-white hover:bg-white/5 transition-colors"
+                aria-label="Close astrological reasoning window"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Domain Card Selector Tabs Inside Modal (when multiple cards exist) */}
+            {thread.cards.length > 1 && (
+              <div className="px-6 py-2.5 border-b border-white/10 bg-[#141720] flex flex-wrap gap-2">
+                {thread.cards.map((card, idx) => {
+                  const t = getCardTheme(card.domain);
+                  const TabIcon = t.icon;
+                  const isCurrent = idx === selectedIndex;
+                  return (
+                    <button
+                      key={card.id}
+                      type="button"
+                      onClick={() => setSelectedIndex(idx)}
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-medium inline-flex items-center gap-1.5 transition-colors ${
+                        isCurrent
+                          ? t.selectorActiveClass
+                          : 'border-white/10 bg-white/[0.02] text-[#8E95A5] hover:text-[#EDEFF5]'
+                      }`}
+                    >
+                      <TabIcon className="w-3.5 h-3.5" />
+                      <span>
+                        {t.label}: {card.title}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${activeTheme.badgeClass}`}
+                >
+                  <ActiveDomainIcon className="w-3.5 h-3.5" />
+                  <span>
+                    {activeTheme.label} · {activeCard.title}
+                  </span>
+                </span>
+                {activeCard.reading?.timingWindow && (
+                  <span className="text-[11px] font-medium tabular-nums text-[#D4A853]">
+                    Peak Window: {activeCard.reading.timingWindow}
+                  </span>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-1.5">
+                <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[#8E95A5]">
+                  Question Evaluated
+                </h4>
+                <p className="text-xs font-medium leading-relaxed text-[#EDEFF5]">
+                  {activeCard.question}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-[#D4A853]/30 bg-[#D4A853]/[0.06] p-4 space-y-2">
+                <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[#D4A853]">
+                  Why the Engine Concluded This
+                </h4>
+                <p className="text-xs leading-relaxed text-[#E6E9F0] whitespace-pre-wrap">
+                  {activeCard.reading?.planetaryTriggers ||
+                    'No detailed astrological triggers returned for this card.'}
+                </p>
+              </div>
+
+              {activeCard.reading?.verdictSummary && (
+                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-1.5">
+                  <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[#8E95A5]">
+                    Corresponding Real-World Outlook
+                  </h4>
+                  <p className="text-xs leading-relaxed text-[#B9C0D0]">
+                    {activeCard.reading.verdictSummary}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3 border-t border-white/10 bg-[#12151C] flex justify-end">
+              <button
+                type="button"
+                onClick={() => setReasoningModalOpen(false)}
+                className="px-4 py-1.5 rounded-lg bg-[#D4A853] hover:bg-[#DFB96B] text-[#111318] text-xs font-semibold transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
