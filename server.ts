@@ -15,6 +15,30 @@ const PROFILES_FILE = path.join(DATA_DIR, 'profiles.json');
 const THREADS_FILE = path.join(DATA_DIR, 'threads.json');
 const API_CONFIG_FILE = path.join(DATA_DIR, 'api-config.json');
 
+interface PersistedConfig {
+  baseApiUrl: string;
+  natalEndpointPath: string;
+  transitEndpointPath: string;
+  apiBearerToken: string;
+  llmProvider: 'gemini' | 'fable';
+  geminiModel: string;
+  fableEndpointUrl: string;
+  fableModel: string;
+  fableApiKey: string;
+}
+
+const DEFAULT_CONFIG: PersistedConfig = {
+  baseApiUrl: '',
+  natalEndpointPath: '/api/natal/dump',
+  transitEndpointPath: '/api/transit/dump',
+  apiBearerToken: '',
+  llmProvider: 'gemini',
+  geminiModel: 'gemini-4-hydrogen',
+  fableEndpointUrl: '',
+  fableModel: 'fable-astro-1',
+  fableApiKey: '',
+};
+
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -75,11 +99,73 @@ function extractPlainTextFromResponse(contentType: string, rawBody: string): str
   return rawBody;
 }
 
+async function callFableAdapter(
+  cfg: PersistedConfig,
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+  expectJson: boolean
+): Promise<string> {
+  if (!cfg.fableEndpointUrl || !cfg.fableEndpointUrl.trim()) {
+    throw new Error(
+      'Fable LLM Adapter endpoint URL is not configured. Open Settings -> LLM Adapters to enter your Fable endpoint.'
+    );
+  }
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (cfg.fableApiKey && cfg.fableApiKey.trim()) {
+    headers['Authorization'] = cfg.fableApiKey.startsWith('Bearer ')
+      ? cfg.fableApiKey.trim()
+      : `Bearer ${cfg.fableApiKey.trim()}`;
+  }
+
+  const bodyPayload: Record<string, unknown> = {
+    model: cfg.fableModel || 'fable-astro-1',
+    messages,
+  };
+  if (expectJson) {
+    bodyPayload.response_format = { type: 'json_object' };
+  }
+
+  const upstream = await fetch(cfg.fableEndpointUrl.trim(), {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(bodyPayload),
+  });
+
+  const raw = await upstream.text();
+  if (!upstream.ok) {
+    throw new Error(`Fable Adapter returned ${upstream.status}: ${raw.slice(0, 260)}`);
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    const content =
+      parsed?.choices?.[0]?.message?.content ??
+      parsed?.output_text ??
+      parsed?.reply ??
+      parsed?.text ??
+      parsed?.content;
+    if (typeof content === 'string') return content;
+    return raw;
+  } catch {
+    return raw;
+  }
+}
+
+function parseLooseJson(rawText: string): Record<string, unknown> {
+  const cleaned = rawText
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
+  return JSON.parse(cleaned);
+}
+
 async function startServer() {
   const app = express();
   app.use(express.json({ limit: '4mb' }));
 
-  // Disk-backed Profiles API
   app.get('/api/profiles', (_req, res) => {
     const profiles = readJsonFile(PROFILES_FILE, null);
     res.json({ profiles });
@@ -95,7 +181,6 @@ async function startServer() {
     res.json({ ok: true });
   });
 
-  // Disk-backed Threads API
   app.get('/api/threads', (_req, res) => {
     const threads = readJsonFile(THREADS_FILE, []);
     res.json({ threads });
@@ -111,15 +196,9 @@ async function startServer() {
     res.json({ ok: true });
   });
 
-  // Disk-backed External REST API Config
   app.get('/api/config', (_req, res) => {
-    const config = readJsonFile(API_CONFIG_FILE, {
-      baseApiUrl: '',
-      natalEndpointPath: '/api/natal/dump',
-      transitEndpointPath: '/api/transit/dump',
-      apiBearerToken: '',
-    });
-    res.json({ config });
+    const stored = readJsonFile<Partial<PersistedConfig>>(API_CONFIG_FILE, {});
+    res.json({ config: { ...DEFAULT_CONFIG, ...stored } });
   });
 
   app.post('/api/config', (req, res) => {
@@ -128,7 +207,8 @@ async function startServer() {
       res.status(400).json({ error: 'Invalid config payload.' });
       return;
     }
-    writeJsonFile(API_CONFIG_FILE, config);
+    const merged = { ...DEFAULT_CONFIG, ...config };
+    writeJsonFile(API_CONFIG_FILE, merged);
     res.json({ ok: true });
   });
 
@@ -202,22 +282,20 @@ async function startServer() {
     }
   });
 
-  // 3-Fold Unified Magic Card Spread Analysis
+  // 3-Fold Unified Magic Card Spread Analysis (Supports Gemini & Fable Adapters)
   app.post('/api/astro/analyze', async (req, res) => {
-    const ai = getAiClient();
-    if (!ai) {
-      res.status(503).json({
-        error:
-          'GEMINI_API_KEY is not configured. Please add your Gemini API key in Settings > Secrets to generate live Vedic readings.',
-      });
-      return;
-    }
-
-    const { profileName, natalDump, narrativeWindow, cards, futureWindow } = req.body;
+    const { profileName, natalDump, narrativeWindow, cards, futureWindow, llmConfig } = req.body;
     if (!natalDump || !narrativeWindow || !Array.isArray(cards) || !futureWindow) {
       res.status(400).json({ error: 'Missing required 3-fold astrological context.' });
       return;
     }
+
+    const storedCfg = readJsonFile<Partial<PersistedConfig>>(API_CONFIG_FILE, {});
+    const activeCfg: PersistedConfig = {
+      ...DEFAULT_CONFIG,
+      ...storedCfg,
+      ...(llmConfig || {}),
+    };
 
     const systemInstruction = `You are Astro AI Studio, a master Vedic astrologer (Jyotish) operating inside a unified 3-Fold Context Architecture:
 - FOLD 1 (SESSION NATAL BASELINE): Complete natal dump for ${profileName || 'the user'} including D1-D144 divisional charts, Vimshottari Dasha-Bhukti-Antara, Moon Sign (Janma Rasi), and SAV/BAV Ashtakavarga bindus.
@@ -262,11 +340,52 @@ ${cardsSummary}
 FUTURE TRANSITS:
 ${futureWindow.transitDump}
 
-Provide a structured synthesis for the full future window plus a dedicated reading for every single card id.`;
+Return JSON strictly matching:
+{
+  "overallSynthesis": "2-3 sentence macro synthesis",
+  "cardReadings": [
+    {
+      "cardId": "exact card id",
+      "verdictSummary": "direct 2-3 sentence answer",
+      "planetaryTriggers": "Dasha-Bhukti, Gochara, D-charts, SAV/BAV",
+      "timingWindow": "active sub-window inside future range",
+      "guidance": "1-2 sentence practical guidance"
+    }
+  ]
+}`;
 
     try {
+      if (activeCfg.llmProvider === 'fable') {
+        const rawFable = await callFableAdapter(
+          activeCfg,
+          [
+            { role: 'system', content: systemInstruction },
+            { role: 'user', content: prompt },
+          ],
+          true
+        );
+        const parsed = parseLooseJson(rawFable);
+        res.json(parsed);
+        return;
+      }
+
+      // Default: Gemini Adapter
+      const ai = getAiClient();
+      if (!ai) {
+        res.status(503).json({
+          error:
+            'GEMINI_API_KEY is not configured. Add your Gemini API key in Settings > Secrets, or switch to the Fable Adapter in Settings.',
+        });
+        return;
+      }
+
+      const geminiModel =
+        activeCfg.geminiModel && activeCfg.geminiModel.trim()
+          ? activeCfg.geminiModel.trim()
+          : 'gemini-4-hydrogen';
+
       const response = await ai.models.generateContent({
-        model: 'gemini-4-hydrogen',
+        model: geminiModel,
         contents: prompt,
         config: {
           systemInstruction,
@@ -276,8 +395,6 @@ Provide a structured synthesis for the full future window plus a dedicated readi
             properties: {
               overallSynthesis: {
                 type: Type.STRING,
-                description:
-                  '2-3 sentence macro synthesis connecting the active Dasha-Bhukti, past calibration window, and future transit window.',
               },
               cardReadings: {
                 type: Type.ARRAY,
@@ -285,24 +402,10 @@ Provide a structured synthesis for the full future window plus a dedicated readi
                   type: Type.OBJECT,
                   properties: {
                     cardId: { type: Type.STRING },
-                    verdictSummary: {
-                      type: Type.STRING,
-                      description: 'Direct, clear answer to the card question in 2-3 sentences.',
-                    },
-                    planetaryTriggers: {
-                      type: Type.STRING,
-                      description:
-                        'Specific Dasha-Bhukti, Gochara from Moon Sign, divisional chart (D9/D10/D24), and SAV/BAV bindu alignment.',
-                    },
-                    timingWindow: {
-                      type: Type.STRING,
-                      description:
-                        'Most active date sub-window inside the future range (e.g. Late Jan – Mid Feb).',
-                    },
-                    guidance: {
-                      type: Type.STRING,
-                      description: 'Practical, grounded next step or timing advice in 1-2 sentences.',
-                    },
+                    verdictSummary: { type: Type.STRING },
+                    planetaryTriggers: { type: Type.STRING },
+                    timingWindow: { type: Type.STRING },
+                    guidance: { type: Type.STRING },
                   },
                   required: ['cardId', 'verdictSummary', 'planetaryTriggers', 'timingWindow', 'guidance'],
                 },
@@ -317,28 +420,35 @@ Provide a structured synthesis for the full future window plus a dedicated readi
       const parsed = JSON.parse(raw);
       res.json(parsed);
     } catch (err: unknown) {
-      console.error('Gemini analyze error:', err);
+      console.error('Analyze error:', err);
       const message = err instanceof Error ? err.message : 'Failed to generate astrological reading.';
       res.status(502).json({ error: message });
     }
   });
 
-  // Persistent 3-Fold Thread Follow-Up Chat
+  // Persistent 3-Fold Thread Follow-Up Chat (Supports Gemini & Fable Adapters)
   app.post('/api/astro/chat', async (req, res) => {
-    const ai = getAiClient();
-    if (!ai) {
-      res.status(503).json({
-        error:
-          'GEMINI_API_KEY is not configured. Please add your Gemini API key in Settings > Secrets to continue chatting.',
-      });
-      return;
-    }
-
-    const { profileName, natalDump, narrativeWindow, cards, futureWindow, history, userMessage } = req.body;
+    const {
+      profileName,
+      natalDump,
+      narrativeWindow,
+      cards,
+      futureWindow,
+      history,
+      userMessage,
+      llmConfig,
+    } = req.body;
     if (!natalDump || !userMessage) {
       res.status(400).json({ error: 'Missing required thread context or message.' });
       return;
     }
+
+    const storedCfg = readJsonFile<Partial<PersistedConfig>>(API_CONFIG_FILE, {});
+    const activeCfg: PersistedConfig = {
+      ...DEFAULT_CONFIG,
+      ...storedCfg,
+      ...(llmConfig || {}),
+    };
 
     const cardsContext = (cards || [])
       .map(
@@ -377,15 +487,43 @@ ${futureWindow?.transitDump || 'N/A'}
 
 Answer follow-up questions with direct references to specific Card numbers, exact dates, Dasha-Bhukti-Antara, divisional charts (D1-D144), SAV/BAV bindus, and Moon-sign Gochara. Keep answers clear, structured, and crisp.`;
 
-    const transcript = (history || [])
-      .map((m: { role: string; content: string }) => `${m.role === 'user' ? 'User' : 'Astro AI'}: ${m.content}`)
-      .join('\n\n');
-
-    const prompt = transcript ? `${transcript}\n\nUser: ${userMessage}` : `User: ${userMessage}`;
-
     try {
+      if (activeCfg.llmProvider === 'fable') {
+        const fableMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+          { role: 'system', content: systemInstruction },
+          ...(history || []).map((m: { role: 'user' | 'assistant'; content: string }) => ({
+            role: m.role,
+            content: m.content,
+          })),
+          { role: 'user', content: userMessage },
+        ];
+        const reply = await callFableAdapter(activeCfg, fableMessages, false);
+        res.json({ reply });
+        return;
+      }
+
+      const ai = getAiClient();
+      if (!ai) {
+        res.status(503).json({
+          error:
+            'GEMINI_API_KEY is not configured. Add your Gemini API key in Settings > Secrets, or switch to the Fable Adapter in Settings.',
+        });
+        return;
+      }
+
+      const geminiModel =
+        activeCfg.geminiModel && activeCfg.geminiModel.trim()
+          ? activeCfg.geminiModel.trim()
+          : 'gemini-4-hydrogen';
+
+      const transcript = (history || [])
+        .map((m: { role: string; content: string }) => `${m.role === 'user' ? 'User' : 'Astro AI'}: ${m.content}`)
+        .join('\n\n');
+
+      const prompt = transcript ? `${transcript}\n\nUser: ${userMessage}` : `User: ${userMessage}`;
+
       const response = await ai.models.generateContent({
-        model: 'gemini-4-hydrogen',
+        model: geminiModel,
         contents: prompt,
         config: {
           systemInstruction,
@@ -394,7 +532,7 @@ Answer follow-up questions with direct references to specific Card numbers, exac
 
       res.json({ reply: response.text ?? 'Unable to generate response.' });
     } catch (err: unknown) {
-      console.error('Gemini chat error:', err);
+      console.error('Chat error:', err);
       const message = err instanceof Error ? err.message : 'Failed to process follow-up question.';
       res.status(502).json({ error: message });
     }
@@ -418,7 +556,6 @@ Answer follow-up questions with direct references to specific Card numbers, exac
     console.log(`Astro AI Studio listening on http://0.0.0.0:${PRIMARY_PORT}`);
   });
 
-  // In AI Studio cloud sandbox preview (DISABLE_HMR=true), keep preview port 3000 active as well
   if (process.env.DISABLE_HMR === 'true' && PRIMARY_PORT !== PREVIEW_PORT) {
     http.createServer(app).listen(PREVIEW_PORT, '0.0.0.0', () => {
       console.log(`Astro AI Studio preview bridge listening on http://0.0.0.0:${PREVIEW_PORT}`);

@@ -9,6 +9,8 @@ export type CardDomain =
 
 export type ThreadStep = 'narrative' | 'reading';
 
+export type LlmProvider = 'gemini' | 'fable';
+
 export interface HousePlacement {
   sign: string;
   signIndex: number; // 0 = Aries .. 11 = Pisces
@@ -35,6 +37,11 @@ export interface StudioApiConfig {
   natalEndpointPath: string;
   transitEndpointPath: string;
   apiBearerToken: string;
+  llmProvider: LlmProvider;
+  geminiModel: string;
+  fableEndpointUrl: string;
+  fableModel: string;
+  fableApiKey: string;
 }
 
 export interface AstroProfile {
@@ -62,8 +69,8 @@ export interface MagicCard {
 }
 
 export interface TransitWindow {
-  startMonth: string; // Typed YYYY-MM
-  endMonth: string; // Typed YYYY-MM (max 3 months span inclusive)
+  startMonth: string; // YYYY-MM
+  endMonth: string; // YYYY-MM (max 3 months span inclusive)
   transitDump: string;
 }
 

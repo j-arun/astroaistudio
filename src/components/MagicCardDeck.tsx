@@ -9,10 +9,11 @@ import {
 } from 'lucide-react';
 import { CardDomain, MagicCard } from '../types/astro';
 import {
-  buildSampleCards,
   formatMonthRangeLabel,
   getMonthBounds,
 } from '../data/sampleProfiles';
+
+export const MAX_MAGIC_CARDS = 3;
 
 interface MagicCardDeckProps {
   startMonth: string;
@@ -61,6 +62,8 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
   const [question, setQuestion] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const isMaxReached = cards.length >= MAX_MAGIC_CARDS && !editingId;
+
   useEffect(() => {
     if (!editingId && isRangeValid) {
       setEventDate((prev) => {
@@ -95,6 +98,10 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
   };
 
   const handleFlipToQuestion = () => {
+    if (isMaxReached) {
+      setErrorMsg(`Maximum ${MAX_MAGIC_CARDS} cards allowed. Edit a card in the tray or click Submit Cards.`);
+      return;
+    }
     if (!title.trim() || !narrative.trim()) {
       setErrorMsg('Enter an event name and brief narrative before flipping the card.');
       return;
@@ -109,6 +116,10 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
   };
 
   const handlePushToTray = () => {
+    if (isMaxReached) {
+      setErrorMsg(`Maximum ${MAX_MAGIC_CARDS} cards allowed.`);
+      return;
+    }
     if (!title.trim() || !narrative.trim()) {
       setErrorMsg('Front event details are required.');
       setIsFlipped(false);
@@ -121,7 +132,7 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
       return;
     }
     if (!question.trim()) {
-      setErrorMsg('Write the question on the back of this card before pushing to tray.');
+      setErrorMsg('Write the question on the back of this card before adding to tray.');
       return;
     }
 
@@ -160,228 +171,228 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
     }
   };
 
-  const handleLoadSamples = () => {
-    if (!isRangeValid) return;
-    const samples = buildSampleCards(startMonth, endMonth);
-    onChangeCards([...cards, ...samples]);
-  };
-
   return (
     <div className="space-y-5">
-      {/* Section Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold text-[#EDEFF5] tracking-tight">
-            Magic Cards · Log Events on Front, Flip to Ask Questions
+            Magic Cards · Up to 3 Cards Maximum
           </h2>
           <p className="text-xs text-[#8E95A5] mt-0.5">
-            Type event dates inside <span className="font-mono text-[#D4A853]">{rangeLabel}</span> ({bounds.minDate} to {bounds.maxDate}), push cards to the tray, then hit Submit.
+            Fill the event on the Front ({bounds.minDate} to {bounds.maxDate}), flip the card to ask your question, and submit up to 3 cards.
           </p>
         </div>
-
-        {cards.length === 0 && (
-          <button
-            type="button"
-            disabled={!isRangeValid}
-            onClick={handleLoadSamples}
-            className="px-3 py-1.5 text-xs font-medium text-[#D4A853] border border-[#D4A853]/30 hover:bg-[#D4A853]/10 disabled:opacity-40 rounded-md transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            Load 4 Sample Cards
-          </button>
-        )}
+        <span className="text-xs font-mono tabular-nums text-[#D4A853]">
+          {cards.length} / {MAX_MAGIC_CARDS} cards
+        </span>
       </div>
 
-      {/* 3D Flippable Magic Card Builder */}
-      <div className="max-w-2xl mx-auto">
-        <div className="perspective-1200">
-          <div
-            className={`relative w-full transition-transform duration-500 preserve-3d ${
-              isFlipped ? 'rotate-y-180' : ''
-            }`}
-            style={{ minHeight: '350px' }}
-          >
-            {/* FRONT FACE — PAST EVENT NARRATIVE */}
+      {/* 3D Flippable Magic Card Builder (or Max Reached Notice if not editing) */}
+      {isMaxReached ? (
+        <div className="max-w-2xl mx-auto bg-[#181B22] border border-[#D4A853]/40 rounded-xl p-6 text-center space-y-2">
+          <p className="text-sm font-semibold text-[#EDEFF5]">
+            3 / 3 Magic Cards Ready
+          </p>
+          <p className="text-xs text-[#8E95A5]">
+            Maximum 3 cards reached. Click any card in the tray below to edit it, or click <span className="text-[#D4A853] font-medium">Submit Cards</span>.
+          </p>
+        </div>
+      ) : (
+        <div className="max-w-2xl mx-auto">
+          <div className="perspective-1200">
             <div
-              className={`w-full rounded-xl bg-[#181B22] border border-[#2D3240] p-5 backface-hidden flex flex-col justify-between ${
-                isFlipped ? 'pointer-events-none' : ''
+              className={`relative w-full transition-transform duration-500 preserve-3d ${
+                isFlipped ? 'rotate-y-180' : ''
               }`}
+              style={{ minHeight: '340px' }}
             >
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b border-[#262A34] pb-2.5">
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="font-mono text-[#D4A853] font-semibold">FRONT SIDE</span>
-                    <span className="text-[#555C6E]">·</span>
-                    <span className="text-[#8E95A5]">What Happened</span>
-                  </div>
-                  {editingId && (
-                    <button
-                      type="button"
-                      onClick={resetDraft}
-                      className="text-xs text-[#8E95A5] hover:text-[#EDEFF5]"
-                    >
-                      Cancel Edit
-                    </button>
-                  )}
-                </div>
-
-                {/* Domain Selector */}
-                <div>
-                  <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
-                    Domain
-                  </label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {DOMAINS.map((d) => (
+              {/* FRONT FACE — PAST EVENT NARRATIVE */}
+              <div
+                className={`w-full rounded-xl bg-[#181B22] border border-[#2D3240] p-5 backface-hidden flex flex-col justify-between ${
+                  isFlipped ? 'pointer-events-none' : ''
+                }`}
+              >
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#262A34] pb-2.5">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="font-mono text-[#D4A853] font-semibold">
+                        CARD {editingId ? 'EDIT' : `#${cards.length + 1}`} · FRONT
+                      </span>
+                      <span className="text-[#555C6E]">·</span>
+                      <span className="text-[#8E95A5]">Event Narrative</span>
+                    </div>
+                    {editingId && (
                       <button
-                        key={d}
                         type="button"
-                        onClick={() => setDomain(d)}
-                        className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
-                          domain === d
-                            ? 'bg-[#D4A853] text-[#111318]'
-                            : 'bg-[#111318] text-[#B9C0D0] border border-[#262A34] hover:border-[#3A4152]'
-                        }`}
+                        onClick={resetDraft}
+                        className="text-xs text-[#8E95A5] hover:text-[#EDEFF5]"
                       >
-                        {d}
+                        Cancel Edit
                       </button>
-                    ))}
+                    )}
                   </div>
-                </div>
 
-                {/* Title + Typed Date */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
-                      Event Name
-                    </label>
-                    <input
-                      type="text"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder="e.g., Saw crush at cafe / Borrowed 5k / Job search"
-                      className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-sm text-[#EDEFF5] placeholder-[#555C6E] outline-none transition-colors"
-                    />
-                  </div>
+                  {/* Domain Selector */}
                   <div>
                     <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
-                      Event Date (Type)
+                      Domain
                     </label>
-                    <input
-                      type="text"
-                      value={eventDate}
-                      onChange={(e) => setEventDate(e.target.value)}
-                      placeholder="YYYY-MM-DD"
-                      className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs font-mono tabular-nums text-[#EDEFF5] placeholder-[#555C6E] outline-none transition-colors"
+                    <div className="flex flex-wrap gap-1.5">
+                      {DOMAINS.map((d) => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => setDomain(d)}
+                          className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
+                            domain === d
+                              ? 'bg-[#D4A853] text-[#111318]'
+                              : 'bg-[#111318] text-[#B9C0D0] border border-[#262A34] hover:border-[#3A4152]'
+                          }`}
+                        >
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Title + Typed Date */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
+                        Event Name
+                      </label>
+                      <input
+                        type="text"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        placeholder="e.g., Saw crush at cafe / Borrowed 5k / Exam"
+                        className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-sm text-[#EDEFF5] placeholder-[#555C6E] outline-none transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
+                        Date (YYYY-MM-DD)
+                      </label>
+                      <input
+                        type="text"
+                        value={eventDate}
+                        onChange={(e) => setEventDate(e.target.value)}
+                        placeholder="YYYY-MM-DD"
+                        className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs font-mono tabular-nums text-[#EDEFF5] placeholder-[#555C6E] outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Narrative Details */}
+                  <div>
+                    <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
+                      What Happened
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={narrative}
+                      onChange={(e) => setNarrative(e.target.value)}
+                      placeholder="Describe what happened during this past period..."
+                      className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-sm text-[#EDEFF5] placeholder-[#555C6E] outline-none transition-colors resize-none"
                     />
                   </div>
+
+                  {errorMsg && !isFlipped && <p className="text-xs text-red-400">{errorMsg}</p>}
                 </div>
 
-                {/* Narrative Details */}
-                <div>
-                  <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
-                    Event Narrative
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={narrative}
-                    onChange={(e) => setNarrative(e.target.value)}
-                    placeholder="Type what happened specifically during this period..."
-                    className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-sm text-[#EDEFF5] placeholder-[#555C6E] outline-none transition-colors resize-none"
-                  />
-                </div>
-
-                {errorMsg && !isFlipped && <p className="text-xs text-red-400">{errorMsg}</p>}
-              </div>
-
-              <div className="flex items-center justify-between pt-4 mt-4 border-t border-[#262A34]">
-                <span className="text-[11px] font-mono text-[#6C7384]">
-                  Range: {bounds.minDate} .. {bounds.maxDate}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleFlipToQuestion}
-                  className="px-4 py-2 text-xs font-semibold bg-[#D4A853] hover:bg-[#DFB96B] text-[#111318] rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap shrink-0"
-                >
-                  <span>Flip Card to Question</span>
-                  <RotateCw className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* BACK FACE — QUESTION SIDE */}
-            <div
-              className={`absolute inset-0 w-full rounded-xl bg-[#1A1E27] border border-[#D4A853]/40 p-5 backface-hidden rotate-y-180 flex flex-col justify-between ${
-                !isFlipped ? 'pointer-events-none' : ''
-              }`}
-            >
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b border-[#262A34] pb-2.5">
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="font-mono text-[#D4A853] font-semibold">BACK SIDE</span>
-                    <span className="text-[#555C6E]">·</span>
-                    <span className="text-[#8E95A5]">Question for Future Window</span>
-                  </div>
+                <div className="flex items-center justify-between pt-4 mt-4 border-t border-[#262A34]">
+                  <span className="text-[11px] font-mono text-[#6C7384]">
+                    {bounds.minDate} .. {bounds.maxDate}
+                  </span>
                   <button
                     type="button"
-                    onClick={() => setIsFlipped(false)}
-                    className="text-xs text-[#B9C0D0] hover:text-[#EDEFF5] flex items-center gap-1"
+                    onClick={handleFlipToQuestion}
+                    className="px-4 py-2 text-xs font-semibold bg-[#D4A853] hover:bg-[#DFB96B] text-[#111318] rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap shrink-0"
                   >
-                    <ArrowLeft className="w-3 h-3" />
-                    Flip to Front
+                    <span>Flip Card for Question</span>
+                    <RotateCw className="w-3.5 h-3.5" />
                   </button>
                 </div>
-
-                <div className="bg-[#111318] border border-[#262A34] rounded-lg px-3.5 py-2.5">
-                  <div className="flex items-center gap-2 text-xs text-[#8E95A5]">
-                    <span className="text-[#D4A853] font-medium">{domain}</span>
-                    <span>·</span>
-                    <span className="font-mono tabular-nums">{eventDate}</span>
-                  </div>
-                  <p className="text-sm font-medium text-[#EDEFF5] mt-0.5 truncate">
-                    {title || 'Untitled Event'}
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-[#EDEFF5] mb-1.5">
-                    Question on your mind for the target future timeline
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={question}
-                    onChange={(e) => setQuestion(e.target.value)}
-                    placeholder="e.g., Will I be able to see this crush again? / Will my friend ask for the 5k back?"
-                    className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3.5 py-2.5 text-sm text-[#EDEFF5] placeholder-[#555C6E] outline-none transition-colors resize-none"
-                  />
-                </div>
-
-                {errorMsg && isFlipped && <p className="text-xs text-red-400">{errorMsg}</p>}
               </div>
 
-              <div className="flex items-center justify-between pt-4 mt-4 border-t border-[#262A34]">
-                <span className="text-xs text-[#8E95A5]">Push this card into the tray</span>
-                <button
-                  type="button"
-                  onClick={handlePushToTray}
-                  className="px-4 py-2 text-xs font-semibold bg-[#D4A853] hover:bg-[#DFB96B] text-[#111318] rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap shrink-0"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>{editingId ? 'Update Card in Tray' : 'Push Card to Tray'}</span>
-                </button>
+              {/* BACK FACE — QUESTION SIDE */}
+              <div
+                className={`absolute inset-0 w-full rounded-xl bg-[#1A1E27] border border-[#D4A853]/40 p-5 backface-hidden rotate-y-180 flex flex-col justify-between ${
+                  !isFlipped ? 'pointer-events-none' : ''
+                }`}
+              >
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#262A34] pb-2.5">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="font-mono text-[#D4A853] font-semibold">BACK SIDE</span>
+                      <span className="text-[#555C6E]">·</span>
+                      <span className="text-[#8E95A5]">Your Question</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsFlipped(false)}
+                      className="text-xs text-[#B9C0D0] hover:text-[#EDEFF5] flex items-center gap-1"
+                    >
+                      <ArrowLeft className="w-3 h-3" />
+                      Flip to Front
+                    </button>
+                  </div>
+
+                  <div className="bg-[#111318] border border-[#262A34] rounded-lg px-3.5 py-2.5">
+                    <div className="flex items-center gap-2 text-xs text-[#8E95A5]">
+                      <span className="text-[#D4A853] font-medium">{domain}</span>
+                      <span>·</span>
+                      <span className="font-mono tabular-nums">{eventDate}</span>
+                    </div>
+                    <p className="text-sm font-medium text-[#EDEFF5] mt-0.5 truncate">
+                      {title || 'Untitled Event'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-[#EDEFF5] mb-1.5">
+                      Question for the Future Target Period
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={question}
+                      onChange={(e) => setQuestion(e.target.value)}
+                      placeholder="e.g., Will I see this crush again? / Will my friend ask for the 5k back?"
+                      className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3.5 py-2.5 text-sm text-[#EDEFF5] placeholder-[#555C6E] outline-none transition-colors resize-none"
+                    />
+                  </div>
+
+                  {errorMsg && isFlipped && <p className="text-xs text-red-400">{errorMsg}</p>}
+                </div>
+
+                <div className="flex items-center justify-between pt-4 mt-4 border-t border-[#262A34]">
+                  <span className="text-xs text-[#8E95A5]">
+                    {cards.length} / {MAX_MAGIC_CARDS} cards
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handlePushToTray}
+                    className="px-4 py-2 text-xs font-semibold bg-[#D4A853] hover:bg-[#DFB96B] text-[#111318] rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>{editingId ? 'Update Card' : 'Add Card to Stack'}</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* CARD TRAY + FINAL SUBMIT */}
+      {/* CARD TRAY + SUBMIT CARDS */}
       <div className="bg-[#181B22] border border-[#262A34] rounded-xl p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Layers className="w-4 h-4 text-[#D4A853]" />
-            <h3 className="text-sm font-semibold text-[#EDEFF5]">Magic Card Tray</h3>
+            <h3 className="text-sm font-semibold text-[#EDEFF5]">Card Stack</h3>
             <span className="text-xs font-mono tabular-nums text-[#8E95A5]">
-              · {cards.length} {cards.length === 1 ? 'card' : 'cards'} ready
+              · {cards.length} / {MAX_MAGIC_CARDS}
             </span>
           </div>
 
@@ -394,8 +405,8 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
             <Sparkles className="w-3.5 h-3.5" />
             <span>
               {isSubmitting
-                ? 'Unfolding 3 Folds...'
-                : `Submit Thread & Unfold (${cards.length} ${cards.length === 1 ? 'Card' : 'Cards'})`}
+                ? 'Shuffling & Reading...'
+                : `Submit Cards (${cards.length})`}
             </span>
           </button>
         </div>
@@ -403,11 +414,11 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
         {cards.length === 0 ? (
           <div className="border border-dashed border-[#2A2F3B] rounded-lg py-5 text-center">
             <p className="text-xs text-[#8E95A5]">
-              Tray is empty. Log an event on the front, flip the card to ask your question, and push it here.
+              No cards added yet. Fill a card above, flip it to ask your question, and add up to 3 cards.
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             {cards.map((card, index) => (
               <div
                 key={card.id}
@@ -423,8 +434,6 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                     <span className="font-mono text-[#D4A853]">#{index + 1}</span>
                     <span>·</span>
                     <span>{card.domain}</span>
-                    <span>·</span>
-                    <span className="font-mono tabular-nums">{card.eventDate}</span>
                   </div>
                   <button
                     type="button"

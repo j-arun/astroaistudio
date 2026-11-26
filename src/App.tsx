@@ -1,12 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { motion } from 'motion/react';
 import {
-  ArrowRight,
   Check,
   ChevronDown,
-  ChevronUp,
   Plus,
-  RefreshCw,
   Settings2,
+  Sparkles,
   Trash2,
   UserPlus,
 } from 'lucide-react';
@@ -42,10 +41,40 @@ const DEFAULT_API_CONFIG: StudioApiConfig = {
   natalEndpointPath: '/api/natal/dump',
   transitEndpointPath: '/api/transit/dump',
   apiBearerToken: '',
+  llmProvider: 'gemini',
+  geminiModel: 'gemini-4-hydrogen',
+  fableEndpointUrl: '',
+  fableModel: 'fable-astro-1',
+  fableApiKey: '',
 };
 
-function isValidYearMonth(val: string): boolean {
-  return /^\d{4}-(0[1-9]|1[0-2])$/.test(val.trim());
+// Build selectable Month+Year dropdown options (2020..2030)
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+const YEAR_OPTIONS = Array.from({ length: 11 }, (_, i) => 2020 + i);
+
+const MONTH_YEAR_OPTIONS: Array<{ value: string; label: string }> = [];
+for (const y of YEAR_OPTIONS) {
+  for (let m = 0; m < 12; m++) {
+    const mm = String(m + 1).padStart(2, '0');
+    MONTH_YEAR_OPTIONS.push({
+      value: `${y}-${mm}`,
+      label: `${MONTH_NAMES[m]} ${y}`,
+    });
+  }
 }
 
 function createInitialDraftThread(profile: AstroProfile | null): AstroThread {
@@ -81,26 +110,28 @@ export default function App() {
     createInitialDraftThread(null)
   );
 
-  const [showTransitBoxes, setShowTransitBoxes] = useState(false);
+  // Sequential step gating inside a New Thread:
+  // 1) Set Past Narrative Period -> 2) Set Future Target Period -> 3) Magic Cards (max 3)
+  const [pastSet, setPastSet] = useState(false);
+  const [futureSet, setFutureSet] = useState(false);
+
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'edit' | 'create' | null>(null);
-  const [customThreadTitle, setCustomThreadTitle] = useState('');
 
-  const [fetchingPastTransit, setFetchingPastTransit] = useState(false);
-  const [fetchingFutureTransit, setFetchingFutureTransit] = useState(false);
-  const [transitFetchError, setTransitFetchError] = useState<string | null>(null);
+  const [settingPast, setSettingPast] = useState(false);
+  const [settingFuture, setSettingFuture] = useState(false);
+  const [timelineError, setTimelineError] = useState<string | null>(null);
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [isSendingChat, setIsSendingChat] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
 
-  // Hydrate disk-backed Profiles, Threads, and API Config (excluding removed sample profiles)
   useEffect(() => {
     const loadInitialData = async () => {
       let loadedProfiles: AstroProfile[] | null = null;
       let loadedThreads: AstroThread[] | null = null;
-      let loadedConfig: StudioApiConfig | null = null;
+      let loadedConfig: Partial<StudioApiConfig> | null = null;
 
       try {
         const [pRes, tRes, cRes] = await Promise.all([
@@ -110,21 +141,15 @@ export default function App() {
         ]);
         if (pRes.ok) {
           const pData = await pRes.json();
-          if (Array.isArray(pData.profiles)) {
-            loadedProfiles = pData.profiles;
-          }
+          if (Array.isArray(pData.profiles)) loadedProfiles = pData.profiles;
         }
         if (tRes.ok) {
           const tData = await tRes.json();
-          if (Array.isArray(tData.threads)) {
-            loadedThreads = tData.threads;
-          }
+          if (Array.isArray(tData.threads)) loadedThreads = tData.threads;
         }
         if (cRes.ok) {
           const cData = await cRes.json();
-          if (cData.config) {
-            loadedConfig = cData.config;
-          }
+          if (cData.config) loadedConfig = cData.config;
         }
       } catch {
         // Fallback to localStorage below
@@ -171,7 +196,7 @@ export default function App() {
         );
       }
       if (loadedConfig) {
-        setApiConfig(loadedConfig);
+        setApiConfig({ ...DEFAULT_API_CONFIG, ...loadedConfig });
       }
     };
 
@@ -241,14 +266,19 @@ export default function App() {
     }
   };
 
+  const resetThreadFlow = (profile: AstroProfile | null) => {
+    setActiveThread(createInitialDraftThread(profile));
+    setPastSet(false);
+    setFutureSet(false);
+    setTimelineError(null);
+    setAnalyzeError(null);
+    setChatError(null);
+  };
+
   const handleSelectProfile = (profile: AstroProfile) => {
     setActiveProfileId(profile.id);
     setProfileMenuOpen(false);
-    setActiveThread(createInitialDraftThread(profile));
-    setCustomThreadTitle('');
-    setAnalyzeError(null);
-    setChatError(null);
-    setTransitFetchError(null);
+    resetThreadFlow(profile);
   };
 
   const handleSaveProfileModal = (updated: AstroProfile, nextConfig: StudioApiConfig) => {
@@ -260,7 +290,7 @@ export default function App() {
     persistConfig(nextConfig);
     setActiveProfileId(updated.id);
     if (!exists || !activeProfile) {
-      setActiveThread(createInitialDraftThread(updated));
+      resetThreadFlow(updated);
     }
   };
 
@@ -274,11 +304,7 @@ export default function App() {
     if (activeProfileId === profileId) {
       const nextProfile = remaining[0] || null;
       setActiveProfileId(nextProfile?.id || '');
-      setActiveThread(createInitialDraftThread(nextProfile));
-      setCustomThreadTitle('');
-      setAnalyzeError(null);
-      setChatError(null);
-      setTransitFetchError(null);
+      resetThreadFlow(nextProfile);
     }
   };
 
@@ -287,15 +313,13 @@ export default function App() {
       setModalMode('create');
       return;
     }
-    setActiveThread(createInitialDraftThread(activeProfile));
-    setCustomThreadTitle('');
-    setAnalyzeError(null);
-    setChatError(null);
-    setTransitFetchError(null);
+    resetThreadFlow(activeProfile);
   };
 
   const handleSelectSavedThread = (thread: AstroThread) => {
     setActiveThread({ ...thread, step: 'reading' });
+    setPastSet(true);
+    setFutureSet(true);
     setAnalyzeError(null);
     setChatError(null);
   };
@@ -309,48 +333,18 @@ export default function App() {
     }
   };
 
-  // Validate typed YYYY-MM 1-3 month windows
-  const isNarrativeValid =
-    isValidYearMonth(activeThread.narrativeWindow.startMonth) &&
-    isValidYearMonth(activeThread.narrativeWindow.endMonth) &&
-    monthDiffInclusive(
-      activeThread.narrativeWindow.startMonth,
-      activeThread.narrativeWindow.endMonth
-    ) >= 1 &&
-    monthDiffInclusive(
-      activeThread.narrativeWindow.startMonth,
-      activeThread.narrativeWindow.endMonth
-    ) <= 3;
+  // Validate 1-3 month spans
+  const narrativeMonthsCount = monthDiffInclusive(
+    activeThread.narrativeWindow.startMonth,
+    activeThread.narrativeWindow.endMonth
+  );
+  const isNarrativeValid = narrativeMonthsCount >= 1 && narrativeMonthsCount <= 3;
 
-  const narrativeMonthsCount =
-    isValidYearMonth(activeThread.narrativeWindow.startMonth) &&
-    isValidYearMonth(activeThread.narrativeWindow.endMonth)
-      ? monthDiffInclusive(
-          activeThread.narrativeWindow.startMonth,
-          activeThread.narrativeWindow.endMonth
-        )
-      : 0;
-
-  const isFutureValid =
-    isValidYearMonth(activeThread.futureWindow.startMonth) &&
-    isValidYearMonth(activeThread.futureWindow.endMonth) &&
-    monthDiffInclusive(
-      activeThread.futureWindow.startMonth,
-      activeThread.futureWindow.endMonth
-    ) >= 1 &&
-    monthDiffInclusive(
-      activeThread.futureWindow.startMonth,
-      activeThread.futureWindow.endMonth
-    ) <= 3;
-
-  const futureMonthsCount =
-    isValidYearMonth(activeThread.futureWindow.startMonth) &&
-    isValidYearMonth(activeThread.futureWindow.endMonth)
-      ? monthDiffInclusive(
-          activeThread.futureWindow.startMonth,
-          activeThread.futureWindow.endMonth
-        )
-      : 0;
+  const futureMonthsCount = monthDiffInclusive(
+    activeThread.futureWindow.startMonth,
+    activeThread.futureWindow.endMonth
+  );
+  const isFutureValid = futureMonthsCount >= 1 && futureMonthsCount <= 3;
 
   const updateNarrativeWindow = (patch: Partial<TransitWindow>) => {
     setActiveThread((prev) => ({
@@ -366,83 +360,90 @@ export default function App() {
     }));
   };
 
-  // Call external Transit REST API: GET /api/transit/dump?personId=001ME&from=June+2026&to=August+2026
-  const handleFetchTransitFromApi = async (mode: 'past' | 'future') => {
+  // Click "Set" on Past or Future Period -> fetch transit details if Base API URL configured, then advance stage
+  const handleSetPeriod = async (mode: 'past' | 'future') => {
     if (!activeProfile) return;
-    setTransitFetchError(null);
-    if (!apiConfig.baseApiUrl.trim()) {
-      setTransitFetchError(
-        'No API Base URL configured yet. Open Profile Settings (gear icon) to set your Base API URL, or paste plain text directly.'
-      );
-      setShowTransitBoxes(true);
-      return;
-    }
+    setTimelineError(null);
 
-    const personId = (activeProfile.personId || '').trim().toUpperCase();
-    if (!isValidPersonId(personId)) {
-      setTransitFetchError(
-        'Profile ID (personId) must be 5 to 7 alphanumeric characters (e.g., 001ME).'
+    const valid = mode === 'past' ? isNarrativeValid : isFutureValid;
+    if (!valid) {
+      setTimelineError(
+        `${mode === 'past' ? 'Past Narrative' : 'Future Target'} period must span 1 to 3 months.`
       );
       return;
     }
 
     const win =
       mode === 'past' ? activeThread.narrativeWindow : activeThread.futureWindow;
-    const rangeValid = mode === 'past' ? isNarrativeValid : isFutureValid;
-    if (!rangeValid) {
-      setTransitFetchError('Enter a valid 1–3 month YYYY-MM range first.');
-      return;
-    }
-
     const fromLabel = formatYearMonthToLongLabel(win.startMonth);
     const toLabel = formatYearMonthToLongLabel(win.endMonth);
 
-    const cleanBase = apiConfig.baseApiUrl.trim().replace(/\/+$/, '');
-    const cleanPath = (apiConfig.transitEndpointPath || '/api/transit/dump').trim();
-    const endpointUrl = `${cleanBase}${cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`}`;
+    // If Base API URL is configured, call GET /api/transit/dump?personId=...&from=...&to=...
+    if (apiConfig.baseApiUrl.trim()) {
+      const personId = (activeProfile.personId || '').trim().toUpperCase();
+      if (!isValidPersonId(personId)) {
+        setTimelineError('Profile ID (personId) must be 5 to 7 alphanumeric characters.');
+        return;
+      }
 
-    if (mode === 'past') setFetchingPastTransit(true);
-    else setFetchingFutureTransit(true);
+      const cleanBase = apiConfig.baseApiUrl.trim().replace(/\/+$/, '');
+      const cleanPath = (apiConfig.transitEndpointPath || '/api/transit/dump').trim();
+      const endpointUrl = `${cleanBase}${cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`}`;
 
-    try {
-      const res = await fetch('/api/external/fetch-dump', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: endpointUrl,
-          method: 'GET',
-          bearerToken: apiConfig.apiBearerToken,
-          queryParams: {
-            personId,
-            from: fromLabel,
-            to: toLabel,
-          },
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(
-          data.error || `Failed to fetch transit for ${fromLabel} to ${toLabel}.`
+      if (mode === 'past') setSettingPast(true);
+      else setSettingFuture(true);
+
+      try {
+        const res = await fetch('/api/external/fetch-dump', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: endpointUrl,
+            method: 'GET',
+            bearerToken: apiConfig.apiBearerToken,
+            queryParams: {
+              personId,
+              from: fromLabel,
+              to: toLabel,
+            },
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || `Failed to fetch ${mode} transit dump.`);
+        }
+        if (typeof data.text === 'string') {
+          if (mode === 'past') updateNarrativeWindow({ transitDump: data.text });
+          else updateFutureWindow({ transitDump: data.text });
+        }
+      } catch (err: unknown) {
+        setTimelineError(
+          err instanceof Error ? err.message : 'Unable to fetch transit details.'
         );
+        if (mode === 'past') setSettingPast(false);
+        else setSettingFuture(false);
+        return;
+      } finally {
+        if (mode === 'past') setSettingPast(false);
+        else setSettingFuture(false);
       }
-
-      if (typeof data.text === 'string') {
-        if (mode === 'past') updateNarrativeWindow({ transitDump: data.text });
-        else updateFutureWindow({ transitDump: data.text });
-        setShowTransitBoxes(true);
-      }
-    } catch (err: unknown) {
-      setTransitFetchError(
-        err instanceof Error ? err.message : 'Unable to reach Transit API.'
+    } else {
+      // Update window label cleanly when no external API URL is set
+      const labelDump = buildSampleTransitDump(
+        win.startMonth,
+        win.endMonth,
+        parsedNatal?.moonSign || 'Moon Sign',
+        mode === 'future'
       );
-      setShowTransitBoxes(true);
-    } finally {
-      if (mode === 'past') setFetchingPastTransit(false);
-      else setFetchingFutureTransit(false);
+      if (mode === 'past') updateNarrativeWindow({ transitDump: labelDump });
+      else updateFutureWindow({ transitDump: labelDump });
     }
+
+    if (mode === 'past') setPastSet(true);
+    else setFutureSet(true);
   };
 
-  // Unified Submit: Sends Session Natal (Fold 1) + Past Narrative & Cards (Fold 2) + Future Window (Fold 3)
+  // Submit Cards -> Animate Cards while waiting for LLM (Gemini or Fable) -> Reveal Stacked Cards
   const handleSubmitThread = async () => {
     if (!activeProfile || !isNarrativeValid || !isFutureValid || activeThread.cards.length === 0) {
       return;
@@ -460,6 +461,13 @@ export default function App() {
           narrativeWindow: activeThread.narrativeWindow,
           cards: activeThread.cards,
           futureWindow: activeThread.futureWindow,
+          llmConfig: {
+            llmProvider: apiConfig.llmProvider,
+            geminiModel: apiConfig.geminiModel,
+            fableEndpointUrl: apiConfig.fableEndpointUrl,
+            fableModel: apiConfig.fableModel,
+            fableApiKey: apiConfig.fableApiKey,
+          },
         }),
       });
 
@@ -493,18 +501,16 @@ export default function App() {
         reading: readingsMap.get(c.id),
       }));
 
-      const autoTitle =
-        customThreadTitle.trim() ||
-        `${formatMonthRangeLabel(
-          activeThread.narrativeWindow.startMonth,
-          activeThread.narrativeWindow.endMonth
-        )} → ${formatMonthRangeLabel(
-          activeThread.futureWindow.startMonth,
-          activeThread.futureWindow.endMonth
-        )} · ${enrichedCards
-          .map((c) => c.domain)
-          .slice(0, 2)
-          .join(' & ')}`;
+      const autoTitle = `${formatMonthRangeLabel(
+        activeThread.narrativeWindow.startMonth,
+        activeThread.narrativeWindow.endMonth
+      )} → ${formatMonthRangeLabel(
+        activeThread.futureWindow.startMonth,
+        activeThread.futureWindow.endMonth
+      )} · ${enrichedCards
+        .map((c) => c.domain)
+        .slice(0, 2)
+        .join(' & ')}`;
 
       const completedThread: AstroThread = {
         ...activeThread,
@@ -559,6 +565,13 @@ export default function App() {
           futureWindow: activeThread.futureWindow,
           history: activeThread.messages,
           userMessage,
+          llmConfig: {
+            llmProvider: apiConfig.llmProvider,
+            geminiModel: apiConfig.geminiModel,
+            fableEndpointUrl: apiConfig.fableEndpointUrl,
+            fableModel: apiConfig.fableModel,
+            fableApiKey: apiConfig.fableApiKey,
+          },
         }),
       });
 
@@ -604,7 +617,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setModalMode(activeProfile ? 'edit' : 'create')}
-              title="Configure Profile, Natal Dump & REST APIs"
+              title="Settings (Profile, REST APIs & Gemini/Fable LLM Adapters)"
               className="text-[#8E95A5] hover:text-[#EDEFF5] p-1 rounded transition-colors"
             >
               <Settings2 className="w-4 h-4" />
@@ -711,7 +724,7 @@ export default function App() {
                       }}
                       className="w-full text-left px-2.5 py-1.5 text-xs text-[#B9C0D0] hover:text-[#EDEFF5] hover:bg-[#242936] rounded transition-colors"
                     >
-                      Configure Natal &amp; APIs
+                      Settings (Natal, REST &amp; LLM)
                     </button>
                   )}
                   <button
@@ -793,7 +806,7 @@ export default function App() {
             <div className="px-2.5 py-6 text-center border border-dashed border-[#262A34] rounded-lg mx-1">
               <p className="text-xs text-[#8E95A5] leading-relaxed">
                 {activeProfile
-                  ? 'Complete your narrative cards & timelines, then click Submit—the finished thread appears here with its name, date, and time.'
+                  ? 'Set your past & future periods, submit up to 3 Magic Cards, and each reading lands here.'
                   : 'Create a profile first to start logging reading threads.'}
               </p>
             </div>
@@ -843,9 +856,11 @@ export default function App() {
           )}
         </div>
 
-        {/* Session Natal Status Footer */}
+        {/* Footer: Active LLM Adapter & Natal Load */}
         <div className="px-4 py-2.5 border-t border-[#262A34] text-[11px] text-[#6C7384] flex items-center justify-between">
-          <span>{activeProfile ? 'Session Natal Active' : 'No Session Profile'}</span>
+          <span className="font-mono uppercase text-[#D4A853]">
+            {apiConfig.llmProvider === 'fable' ? 'Fable LLM' : 'Gemini LLM'}
+          </span>
           <span className="font-mono tabular-nums text-[#8E95A5]">
             {parsedNatal ? `${parsedNatal.tokenEstimate.toLocaleString()} tok` : '—'}
           </span>
@@ -854,25 +869,23 @@ export default function App() {
 
       {/* MAIN WORKSPACE */}
       <main className="flex-1 min-w-0 flex flex-col bg-[#111318]">
-        {/* Minimal Top Bar */}
+        {/* Minimal Clean Top Bar */}
         <header className="h-12 shrink-0 border-b border-[#262A34] px-6 flex items-center justify-between bg-[#14171D]">
-          <div className="flex items-center gap-2 text-xs text-[#8E95A5] truncate">
-            <span className="font-medium text-[#EDEFF5] truncate">
-              {activeProfile
-                ? activeThread.step === 'reading'
-                  ? activeThread.title
-                  : `${activeProfile.name} (${activeProfile.personId})`
-                : 'Profile Setup Required'}
-            </span>
-          </div>
-          {activeProfile && (
+          <span className="text-xs font-medium text-[#EDEFF5] truncate">
+            {activeProfile
+              ? activeThread.step === 'reading'
+                ? activeThread.title
+                : `${activeProfile.name} (${activeProfile.personId})`
+              : 'Profile Setup Required'}
+          </span>
+          {activeProfile && parsedNatal && (
             <span className="text-[11px] font-mono text-[#6C7384]">
-              {parsedNatal?.currentDasha}
+              {parsedNatal.currentDasha}
             </span>
           )}
         </header>
 
-        {/* Scrollable Workspace Content */}
+        {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto px-6 py-6">
           <div className="max-w-4xl mx-auto space-y-6">
             {!activeProfile ? (
@@ -881,7 +894,7 @@ export default function App() {
                   Set Up Your Profile (personId) &amp; Natal Dump
                 </h1>
                 <p className="text-sm text-[#8E95A5] max-w-lg mx-auto leading-relaxed">
-                  Enter your 5–7 character <span className="font-mono text-[#D4A853]">personId</span> (for example <span className="font-mono text-[#EDEFF5]">001ME</span>), configure your REST API Base URL, and fetch or paste your plain-text Natal Dump once for the session.
+                  Enter your 5–7 character <span className="font-mono text-[#D4A853]">personId</span> (e.g., <span className="font-mono text-[#EDEFF5]">001ME</span>), configure your REST APIs and LLM Adapter (Gemini or Fable), and load your Natal Dump once for the session.
                 </p>
                 <div className="pt-1">
                   <button
@@ -890,250 +903,300 @@ export default function App() {
                     className="px-5 py-2.5 bg-[#D4A853] hover:bg-[#DFB96B] text-[#111318] text-xs font-semibold rounded-lg transition-colors inline-flex items-center gap-2"
                   >
                     <UserPlus className="w-4 h-4" />
-                    Create Profile &amp; Configure APIs
+                    Create Profile &amp; Configure Settings
                   </button>
                 </div>
               </div>
+            ) : isAnalyzing ? (
+              /* SHUFFLING CARDS ANIMATION WHILE WAITING FOR LLM RESPONSE */
+              <div className="py-16 flex flex-col items-center justify-center space-y-8">
+                <div className="relative h-56 w-80 flex items-center justify-center">
+                  {activeThread.cards.map((card, idx) => {
+                    const total = activeThread.cards.length;
+                    const offset = idx - (total - 1) / 2;
+                    return (
+                      <motion.div
+                        key={card.id}
+                        initial={{ x: offset * 28, rotate: offset * 6, scale: 0.96 }}
+                        animate={{
+                          x: [offset * 34, -offset * 46, offset * 26],
+                          y: [0, -14, 0],
+                          rotate: [offset * 7, -offset * 9, offset * 5],
+                          scale: [0.97, 1.03, 0.97],
+                        }}
+                        transition={{
+                          duration: 1.8,
+                          repeat: Infinity,
+                          ease: 'easeInOut',
+                          delay: idx * 0.18,
+                        }}
+                        className="absolute w-52 h-36 rounded-xl bg-[#1A1E27] border border-[#D4A853]/60 p-4 shadow-2xl flex flex-col justify-between"
+                      >
+                        <div className="flex items-center justify-between text-[10px] font-mono text-[#D4A853]">
+                          <span>CARD #{idx + 1}</span>
+                          <span>{card.domain}</span>
+                        </div>
+                        <div className="text-xs font-semibold text-[#EDEFF5] line-clamp-2">
+                          {card.title}
+                        </div>
+                        <div className="text-[10px] text-[#8E95A5] line-clamp-1">
+                          {card.question}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+
+                <div className="text-center space-y-1.5">
+                  <div className="inline-flex items-center gap-2 text-sm font-semibold text-[#EDEFF5]">
+                    <Sparkles className="w-4 h-4 text-[#D4A853] animate-pulse" />
+                    <span>
+                      Consulting {apiConfig.llmProvider === 'fable' ? 'Fable' : 'Gemini'} Engine...
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#8E95A5]">
+                    Cross-checking Natal D1–D144, Past Calibration ({formatMonthRangeLabel(activeThread.narrativeWindow.startMonth, activeThread.narrativeWindow.endMonth)}), and Future Transits ({formatMonthRangeLabel(activeThread.futureWindow.startMonth, activeThread.futureWindow.endMonth)})
+                  </p>
+                </div>
+              </div>
             ) : activeThread.step === 'narrative' ? (
-              <>
-                {/* TIMELINES & TRANSITS BAR (TYPED MONTHS + API FETCH) */}
-                <div className="bg-[#181B22] border border-[#262A34] rounded-xl p-5 space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#262A34] pb-3">
+              <div className="space-y-6">
+                {/* STAGE 1: SET PAST NARRATIVE PERIOD (FROM & TO DROPDOWNS + SET) */}
+                {!pastSet ? (
+                  <div className="max-w-xl mx-auto mt-6 bg-[#181B22] border border-[#262A34] rounded-xl p-6 space-y-5">
                     <div>
-                      <h1 className="text-base font-semibold text-[#EDEFF5] tracking-tight">
-                        Set Past Narrative &amp; Future Target Timelines
+                      <div className="text-[11px] font-mono text-[#D4A853] mb-1">
+                        STEP 1 OF 3
+                      </div>
+                      <h1 className="text-lg font-semibold text-[#EDEFF5]">
+                        Set Past Narrative Period
                       </h1>
-                      <p className="text-xs text-[#8E95A5] mt-0.5">
-                        Type <span className="font-mono text-[#EDEFF5]">YYYY-MM</span> ranges (1–3 months max each). Natal data for{' '}
-                        <span className="text-[#D4A853] font-medium">
-                          {activeProfile.name} ({activeProfile.personId})
-                        </span>{' '}
-                        remains loaded for this session.
+                      <p className="text-xs text-[#8E95A5] mt-1">
+                        Select From and To (1–3 months max) and click Set to load this window.
                       </p>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setShowTransitBoxes((v) => !v)}
-                      className="px-2.5 py-1.5 text-xs font-medium text-[#B9C0D0] hover:text-[#EDEFF5] bg-[#111318] border border-[#262A34] rounded-md flex items-center gap-1.5 whitespace-nowrap shrink-0"
-                    >
-                      <span>{showTransitBoxes ? 'Hide Transit Dumps' : 'View / Edit Transit Dumps'}</span>
-                      {showTransitBoxes ? (
-                        <ChevronUp className="w-3.5 h-3.5" />
-                      ) : (
-                        <ChevronDown className="w-3.5 h-3.5" />
-                      )}
-                    </button>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
+                          From
+                        </label>
+                        <select
+                          value={activeThread.narrativeWindow.startMonth}
+                          onChange={(e) =>
+                            updateNarrativeWindow({ startMonth: e.target.value })
+                          }
+                          className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2.5 text-sm text-[#EDEFF5] outline-none"
+                        >
+                          {MONTH_YEAR_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
+                          To
+                        </label>
+                        <select
+                          value={activeThread.narrativeWindow.endMonth}
+                          onChange={(e) =>
+                            updateNarrativeWindow({ endMonth: e.target.value })
+                          }
+                          className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2.5 text-sm text-[#EDEFF5] outline-none"
+                        >
+                          {MONTH_YEAR_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {timelineError && (
+                      <p className="text-xs text-red-400">{timelineError}</p>
+                    )}
+
+                    <div className="flex items-center justify-between pt-2 border-t border-[#262A34]">
+                      <span
+                        className={`text-xs font-mono tabular-nums ${
+                          isNarrativeValid ? 'text-[#8E95A5]' : 'text-red-400'
+                        }`}
+                      >
+                        {narrativeMonthsCount >= 1
+                          ? `${narrativeMonthsCount} / 3 months`
+                          : 'End must be >= Start'}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={!isNarrativeValid || settingPast}
+                        onClick={() => handleSetPeriod('past')}
+                        className="px-5 py-2 bg-[#D4A853] hover:bg-[#DFB96B] disabled:opacity-40 text-[#111318] text-xs font-semibold rounded-lg transition-colors"
+                      >
+                        {settingPast ? 'Setting...' : 'Set'}
+                      </button>
+                    </div>
                   </div>
-
-                  {/* Typed Month Range Inputs */}
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-                    {/* Past Narrative Months */}
-                    <div className="lg:col-span-5 bg-[#111318] border border-[#262A34] rounded-lg p-3.5 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-[#EDEFF5]">
-                          Past Narrative Period
+                ) : !futureSet ? (
+                  /* STAGE 2: SET FUTURE TARGET PERIOD (FROM & TO DROPDOWNS + SET) */
+                  <div className="max-w-xl mx-auto mt-6 space-y-4">
+                    <div className="bg-[#161920] border border-[#262A34] rounded-lg px-4 py-2.5 flex items-center justify-between text-xs">
+                      <span className="text-[#B9C0D0]">
+                        Past Narrative:{' '}
+                        <span className="text-[#D4A853] font-medium">
+                          {formatMonthRangeLabel(
+                            activeThread.narrativeWindow.startMonth,
+                            activeThread.narrativeWindow.endMonth
+                          )}
                         </span>
-                        <span
-                          className={`text-[11px] font-mono tabular-nums ${
-                            isNarrativeValid ? 'text-[#D4A853]' : 'text-red-400'
-                          }`}
-                        >
-                          {narrativeMonthsCount > 0 ? `${narrativeMonthsCount}/3 mo` : 'Invalid'}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-[10px] text-[#8E95A5] mb-1">
-                            From (YYYY-MM)
-                          </label>
-                          <input
-                            type="text"
-                            value={activeThread.narrativeWindow.startMonth}
-                            onChange={(e) => updateNarrativeWindow({ startMonth: e.target.value })}
-                            placeholder="2026-06"
-                            className="w-full bg-[#181B22] border border-[#262A34] focus:border-[#D4A853] rounded px-2.5 py-1.5 text-xs font-mono tabular-nums text-[#EDEFF5] outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-[#8E95A5] mb-1">
-                            To (YYYY-MM)
-                          </label>
-                          <input
-                            type="text"
-                            value={activeThread.narrativeWindow.endMonth}
-                            onChange={(e) => updateNarrativeWindow({ endMonth: e.target.value })}
-                            placeholder="2026-08"
-                            className="w-full bg-[#181B22] border border-[#262A34] focus:border-[#D4A853] rounded px-2.5 py-1.5 text-xs font-mono tabular-nums text-[#EDEFF5] outline-none"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-[11px] text-[#6C7384]">
-                          {isNarrativeValid
-                            ? formatMonthRangeLabel(
-                                activeThread.narrativeWindow.startMonth,
-                                activeThread.narrativeWindow.endMonth
-                              )
-                            : 'Must be 1–3 months'}
-                        </span>
-                        <button
-                          type="button"
-                          disabled={!isNarrativeValid || fetchingPastTransit}
-                          onClick={() => handleFetchTransitFromApi('past')}
-                          className="text-[11px] text-[#D4A853] hover:text-[#DFB96B] flex items-center gap-1 disabled:opacity-40"
-                        >
-                          <RefreshCw
-                            className={`w-3 h-3 ${fetchingPastTransit ? 'animate-spin' : ''}`}
-                          />
-                          <span>Fetch Transit API</span>
-                        </button>
-                      </div>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setPastSet(false)}
+                        className="text-[#8E95A5] hover:text-[#EDEFF5] text-[11px]"
+                      >
+                        Change
+                      </button>
                     </div>
 
-                    <div className="hidden lg:flex lg:col-span-1 items-center justify-center pt-9 text-[#555C6E]">
-                      <ArrowRight className="w-4 h-4" />
-                    </div>
-
-                    {/* Future Target Months */}
-                    <div className="lg:col-span-6 bg-[#111318] border border-[#262A34] rounded-lg p-3.5 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-[#EDEFF5]">
-                          Future Target Period
-                        </span>
-                        <span
-                          className={`text-[11px] font-mono tabular-nums ${
-                            isFutureValid ? 'text-[#D4A853]' : 'text-red-400'
-                          }`}
-                        >
-                          {futureMonthsCount > 0 ? `${futureMonthsCount}/3 mo` : 'Invalid'}
-                        </span>
+                    <div className="bg-[#181B22] border border-[#262A34] rounded-xl p-6 space-y-5">
+                      <div>
+                        <div className="text-[11px] font-mono text-[#D4A853] mb-1">
+                          STEP 2 OF 3
+                        </div>
+                        <h1 className="text-lg font-semibold text-[#EDEFF5]">
+                          Set Future Target Period
+                        </h1>
+                        <p className="text-xs text-[#8E95A5] mt-1">
+                          Select From and To (1–3 months max) and click Set to deal your Magic Cards.
+                        </p>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-[10px] text-[#8E95A5] mb-1">
-                            From (YYYY-MM)
+                          <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
+                            From
                           </label>
-                          <input
-                            type="text"
+                          <select
                             value={activeThread.futureWindow.startMonth}
-                            onChange={(e) => updateFutureWindow({ startMonth: e.target.value })}
-                            placeholder="2027-01"
-                            className="w-full bg-[#181B22] border border-[#262A34] focus:border-[#D4A853] rounded px-2.5 py-1.5 text-xs font-mono tabular-nums text-[#EDEFF5] outline-none"
-                          />
+                            onChange={(e) =>
+                              updateFutureWindow({ startMonth: e.target.value })
+                            }
+                            className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2.5 text-sm text-[#EDEFF5] outline-none"
+                          >
+                            {MONTH_YEAR_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
                         </div>
+
                         <div>
-                          <label className="block text-[10px] text-[#8E95A5] mb-1">
-                            To (YYYY-MM)
+                          <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
+                            To
                           </label>
-                          <input
-                            type="text"
+                          <select
                             value={activeThread.futureWindow.endMonth}
-                            onChange={(e) => updateFutureWindow({ endMonth: e.target.value })}
-                            placeholder="2027-02"
-                            className="w-full bg-[#181B22] border border-[#262A34] focus:border-[#D4A853] rounded px-2.5 py-1.5 text-xs font-mono tabular-nums text-[#EDEFF5] outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-[#8E95A5] mb-1">
-                            Thread Name
-                          </label>
-                          <input
-                            type="text"
-                            value={customThreadTitle}
-                            onChange={(e) => setCustomThreadTitle(e.target.value)}
-                            placeholder="Optional"
-                            className="w-full bg-[#181B22] border border-[#262A34] focus:border-[#D4A853] rounded px-2.5 py-1.5 text-xs text-[#EDEFF5] placeholder-[#555C6E] outline-none"
-                          />
+                            onChange={(e) =>
+                              updateFutureWindow({ endMonth: e.target.value })
+                            }
+                            className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2.5 text-sm text-[#EDEFF5] outline-none"
+                          >
+                            {MONTH_YEAR_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-[11px] text-[#6C7384]">
-                          {isFutureValid
-                            ? formatMonthRangeLabel(
-                                activeThread.futureWindow.startMonth,
-                                activeThread.futureWindow.endMonth
-                              )
-                            : 'Must be 1–3 months'}
+                      {timelineError && (
+                        <p className="text-xs text-red-400">{timelineError}</p>
+                      )}
+
+                      <div className="flex items-center justify-between pt-2 border-t border-[#262A34]">
+                        <span
+                          className={`text-xs font-mono tabular-nums ${
+                            isFutureValid ? 'text-[#8E95A5]' : 'text-red-400'
+                          }`}
+                        >
+                          {futureMonthsCount >= 1
+                            ? `${futureMonthsCount} / 3 months`
+                            : 'End must be >= Start'}
                         </span>
                         <button
                           type="button"
-                          disabled={!isFutureValid || fetchingFutureTransit}
-                          onClick={() => handleFetchTransitFromApi('future')}
-                          className="text-[11px] text-[#D4A853] hover:text-[#DFB96B] flex items-center gap-1 disabled:opacity-40"
+                          disabled={!isFutureValid || settingFuture}
+                          onClick={() => handleSetPeriod('future')}
+                          className="px-5 py-2 bg-[#D4A853] hover:bg-[#DFB96B] disabled:opacity-40 text-[#111318] text-xs font-semibold rounded-lg transition-colors"
                         >
-                          <RefreshCw
-                            className={`w-3 h-3 ${fetchingFutureTransit ? 'animate-spin' : ''}`}
-                          />
-                          <span>Fetch Transit API</span>
+                          {settingFuture ? 'Setting...' : 'Set'}
                         </button>
                       </div>
                     </div>
                   </div>
-
-                  {transitFetchError && (
-                    <div className="bg-amber-950/30 border border-amber-800/50 rounded-lg px-3.5 py-2 text-xs text-amber-200">
-                      {transitFetchError}
-                    </div>
-                  )}
-
-                  {/* Expandable Plain-Text Transit Dumps */}
-                  {showTransitBoxes && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2 border-t border-[#262A34]">
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <label className="text-xs font-medium text-[#8E95A5]">
-                            Past Window Plain-Text Transits
-                          </label>
-                        </div>
-                        <textarea
-                          rows={5}
-                          value={activeThread.narrativeWindow.transitDump}
-                          onChange={(e) => updateNarrativeWindow({ transitDump: e.target.value })}
-                          className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg p-3 text-xs font-mono leading-relaxed text-[#D8DCE6] outline-none resize-y"
-                        />
+                ) : (
+                  /* STAGE 3: MAGIC CARDS (MAX 3) + SUBMIT CARDS */
+                  <div className="space-y-5">
+                    <div className="bg-[#161920] border border-[#262A34] rounded-lg px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-3 text-[#B9C0D0]">
+                        <span>
+                          Past:{' '}
+                          <span className="text-[#D4A853] font-medium">
+                            {formatMonthRangeLabel(
+                              activeThread.narrativeWindow.startMonth,
+                              activeThread.narrativeWindow.endMonth
+                            )}
+                          </span>
+                        </span>
+                        <span className="text-[#555C6E]">→</span>
+                        <span>
+                          Future:{' '}
+                          <span className="text-[#EDEFF5] font-medium">
+                            {formatMonthRangeLabel(
+                              activeThread.futureWindow.startMonth,
+                              activeThread.futureWindow.endMonth
+                            )}
+                          </span>
+                        </span>
                       </div>
-
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <label className="text-xs font-medium text-[#8E95A5]">
-                            Future Window Plain-Text Transits
-                          </label>
-                        </div>
-                        <textarea
-                          rows={5}
-                          value={activeThread.futureWindow.transitDump}
-                          onChange={(e) => updateFutureWindow({ transitDump: e.target.value })}
-                          className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg p-3 text-xs font-mono leading-relaxed text-[#D8DCE6] outline-none resize-y"
-                        />
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFutureSet(false)}
+                        className="text-[11px] text-[#8E95A5] hover:text-[#EDEFF5]"
+                      >
+                        Change Future Period
+                      </button>
                     </div>
-                  )}
-                </div>
 
-                {analyzeError && (
-                  <div className="bg-red-950/30 border border-red-900/50 rounded-lg px-4 py-3 text-xs text-red-300">
-                    {analyzeError}
+                    {analyzeError && (
+                      <div className="bg-red-950/30 border border-red-900/50 rounded-lg px-4 py-3 text-xs text-red-300">
+                        {analyzeError}
+                      </div>
+                    )}
+
+                    <MagicCardDeck
+                      startMonth={activeThread.narrativeWindow.startMonth}
+                      endMonth={activeThread.narrativeWindow.endMonth}
+                      isRangeValid={isNarrativeValid}
+                      isFutureValid={isFutureValid}
+                      isSubmitting={isAnalyzing}
+                      cards={activeThread.cards}
+                      onChangeCards={(cards) =>
+                        setActiveThread((prev) => ({ ...prev, cards }))
+                      }
+                      onSubmitThread={handleSubmitThread}
+                    />
                   </div>
                 )}
-
-                {/* MAGIC CARD BUILDER + TRAY + SINGLE SUBMIT */}
-                <MagicCardDeck
-                  startMonth={activeThread.narrativeWindow.startMonth}
-                  endMonth={activeThread.narrativeWindow.endMonth}
-                  isRangeValid={isNarrativeValid}
-                  isFutureValid={isFutureValid}
-                  isSubmitting={isAnalyzing}
-                  cards={activeThread.cards}
-                  onChangeCards={(cards) => setActiveThread((prev) => ({ ...prev, cards }))}
-                  onSubmitThread={handleSubmitThread}
-                />
-              </>
+              </div>
             ) : (
+              /* COMPLETED READING: STACKED CLICKABLE CARDS + FLOWING CHAT */
               <OpenedCardSpread
                 thread={activeThread}
                 isSendingChat={isSendingChat}
@@ -1153,6 +1216,7 @@ export default function App() {
           apiConfig={apiConfig}
           onClose={() => setModalMode(null)}
           onSave={handleSaveProfileModal}
+          onSaveConfigOnly={persistConfig}
           onDelete={handleDeleteProfile}
         />
       )}
