@@ -14,6 +14,8 @@ import {
 import {
   AstroProfile,
   AstroThread,
+  CardReading,
+  LlmProvider,
   MagicCard,
   StudioApiConfig,
   ThreadMessage,
@@ -21,6 +23,7 @@ import {
 } from './types/astro';
 import {
   DEFAULT_PROFILES,
+  MONTH_YEAR_OPTIONS,
   buildSampleTransitDump,
   formatMonthRangeLabel,
   formatYearMonthToLongLabel,
@@ -58,35 +61,6 @@ const DEFAULT_API_CONFIG: StudioApiConfig = {
   ollamaBaseUrl: 'http://localhost:11434',
   ollamaModel: 'qwen2.5:latest',
 };
-
-// Build selectable Month+Year dropdown options (2020..2030)
-const MONTH_NAMES = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
-
-const YEAR_OPTIONS = Array.from({ length: 11 }, (_, i) => 2020 + i);
-
-const MONTH_YEAR_OPTIONS: Array<{ value: string; label: string }> = [];
-for (const y of YEAR_OPTIONS) {
-  for (let m = 0; m < 12; m++) {
-    const mm = String(m + 1).padStart(2, '0');
-    MONTH_YEAR_OPTIONS.push({
-      value: `${y}-${mm}`,
-      label: `${MONTH_NAMES[m]} ${y}`,
-    });
-  }
-}
 
 function createInitialDraftThread(profile: AstroProfile | null): AstroThread {
   const parsed = profile ? parseNatalDump(profile.natalDump, profile.name) : null;
@@ -148,6 +122,10 @@ export default function App() {
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [isPostingToPrivateLlm, setIsPostingToPrivateLlm] = useState(false);
+  const [privateLlmError, setPrivateLlmError] = useState<string | null>(null);
+  const [isUpdatingFollowUpWindow, setIsUpdatingFollowUpWindow] = useState(false);
+  const [followUpWindowError, setFollowUpWindowError] = useState<string | null>(null);
   const [isSendingChat, setIsSendingChat] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
@@ -384,6 +362,8 @@ export default function App() {
     setFutureSet(false);
     setTimelineError(null);
     setAnalyzeError(null);
+    setPrivateLlmError(null);
+    setFollowUpWindowError(null);
     setChatError(null);
   };
 
@@ -433,6 +413,8 @@ export default function App() {
     setPastSet(true);
     setFutureSet(true);
     setAnalyzeError(null);
+    setPrivateLlmError(null);
+    setFollowUpWindowError(null);
     setChatError(null);
   };
 
@@ -632,6 +614,7 @@ export default function App() {
         title: autoTitle,
         submittedAt: new Date().toISOString(),
         step: 'reading',
+        primaryProvider: apiConfig.llmProvider,
         cards: enrichedCards,
         overallSynthesis: data.overallSynthesis || '',
       };
@@ -648,14 +631,181 @@ export default function App() {
     }
   };
 
+  // Post the exact same 3-fold prompt to Private LLM (Ollama) and store on a second tab
+  const handlePostToPrivateLlm = async () => {
+    if (!activeProfile || activeThread.cards.length === 0 || isPostingToPrivateLlm) {
+      return;
+    }
+    setIsPostingToPrivateLlm(true);
+    setPrivateLlmError(null);
+
+    try {
+      const res = await fetch('/api/astro/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileName: activeProfile.name,
+          natalDump: activeProfile.natalDump,
+          narrativeWindow: activeThread.narrativeWindow,
+          cards: activeThread.cards,
+          futureWindow: activeThread.futureWindow,
+          llmConfig: {
+            llmProvider: 'ollama',
+            ollamaBaseUrl: apiConfig.ollamaBaseUrl,
+            ollamaModel: apiConfig.ollamaModel,
+          },
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to get response from Private LLM (Ollama).');
+      }
+
+      const readingsMap = new Map<string, CardReading>();
+      if (Array.isArray(data.cardReadings)) {
+        for (const r of data.cardReadings) {
+          readingsMap.set(r.cardId, {
+            verdictSummary: r.verdictSummary,
+            planetaryTriggers: r.planetaryTriggers,
+            timingWindow: r.timingWindow,
+            guidance: r.guidance,
+          });
+        }
+      }
+
+      const updatedCards: MagicCard[] = activeThread.cards.map((c, idx) => ({
+        ...c,
+        privateReading:
+          readingsMap.get(c.id) ||
+          (idx === 0 && Array.isArray(data.cardReadings) && data.cardReadings[0]
+            ? {
+                verdictSummary: data.cardReadings[0].verdictSummary,
+                planetaryTriggers: data.cardReadings[0].planetaryTriggers,
+                timingWindow: data.cardReadings[0].timingWindow,
+                guidance: data.cardReadings[0].guidance,
+              }
+            : c.privateReading),
+      }));
+
+      const updatedThread: AstroThread = {
+        ...activeThread,
+        cards: updatedCards,
+        privateOverallSynthesis: data.overallSynthesis || '',
+        privateModel: apiConfig.ollamaModel || 'ollama',
+      };
+
+      setActiveThread(updatedThread);
+      const nextSaved = savedThreads.map((t) => (t.id === updatedThread.id ? updatedThread : t));
+      if (!savedThreads.some((t) => t.id === updatedThread.id)) {
+        nextSaved.unshift(updatedThread);
+      }
+      persistThreads(nextSaved);
+    } catch (err: unknown) {
+      setPrivateLlmError(
+        err instanceof Error ? err.message : 'Unable to reach Private LLM (Ollama).'
+      );
+    } finally {
+      setIsPostingToPrivateLlm(false);
+    }
+  };
+
+  // Change ONLY the Future Target timeline (Past Narrative remains locked) for follow-up questions
+  const handleUpdateFollowUpFutureWindow = async (
+    startMonth: string,
+    endMonth: string
+  ): Promise<boolean> => {
+    if (!activeProfile) return false;
+    setFollowUpWindowError(null);
+
+    const span = monthDiffInclusive(startMonth, endMonth);
+    if (span < 1 || span > 3) {
+      setFollowUpWindowError('Future Target timeline must span 1 to 3 months.');
+      return false;
+    }
+
+    let nextTransitDump = buildSampleTransitDump(
+      startMonth,
+      endMonth,
+      parsedNatal?.moonSign || 'Moon Sign',
+      true
+    );
+
+    if (apiConfig.baseApiUrl.trim()) {
+      const personId = (activeProfile.personId || '').trim().toUpperCase();
+      if (!isValidPersonId(personId)) {
+        setFollowUpWindowError('Profile ID (personId) must be 5 to 7 alphanumeric characters.');
+        return false;
+      }
+
+      const cleanBase = apiConfig.baseApiUrl.trim().replace(/\/+$/, '');
+      const cleanPath = (apiConfig.transitEndpointPath || '/api/transit/dump').trim();
+      const endpointUrl = `${cleanBase}${cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`}`;
+
+      setIsUpdatingFollowUpWindow(true);
+      try {
+        const res = await fetch('/api/external/fetch-dump', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: endpointUrl,
+            method: 'GET',
+            bearerToken: apiConfig.apiBearerToken,
+            queryParams: {
+              personId,
+              from: formatYearMonthToLongLabel(startMonth),
+              to: formatYearMonthToLongLabel(endMonth),
+            },
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to fetch future transit dump.');
+        }
+        if (typeof data.text === 'string') {
+          nextTransitDump = data.text;
+        }
+      } catch (err: unknown) {
+        setFollowUpWindowError(
+          err instanceof Error ? err.message : 'Unable to fetch transit details for new timeline.'
+        );
+        setIsUpdatingFollowUpWindow(false);
+        return false;
+      } finally {
+        setIsUpdatingFollowUpWindow(false);
+      }
+    }
+
+    const updatedThread: AstroThread = {
+      ...activeThread,
+      futureWindow: {
+        startMonth,
+        endMonth,
+        transitDump: nextTransitDump,
+      },
+    };
+
+    setActiveThread(updatedThread);
+    const nextSaved = savedThreads.map((t) => (t.id === updatedThread.id ? updatedThread : t));
+    if (!savedThreads.some((t) => t.id === updatedThread.id)) {
+      nextSaved.unshift(updatedThread);
+    }
+    persistThreads(nextSaved);
+    return true;
+  };
+
   // Persistent 3-Fold Thread Follow-Up Chat
-  const handleSendChat = async (userMessage: string) => {
+  const handleSendChat = async (userMessage: string, targetProvider?: LlmProvider) => {
     if (!activeProfile) return;
     setChatError(null);
+    const effectiveProvider: LlmProvider =
+      targetProvider || activeThread.primaryProvider || apiConfig.llmProvider;
+
     const userMsg: ThreadMessage = {
       id: `msg-${Date.now()}-u`,
       role: 'user',
       content: userMessage,
+      provider: effectiveProvider,
       timestamp: new Date().toISOString(),
     };
 
@@ -680,7 +830,7 @@ export default function App() {
           history: activeThread.messages,
           userMessage,
           llmConfig: {
-            llmProvider: apiConfig.llmProvider,
+            llmProvider: effectiveProvider,
             geminiModel: apiConfig.geminiModel,
             fableEndpointUrl: apiConfig.fableEndpointUrl,
             fableModel: apiConfig.fableModel,
@@ -700,6 +850,7 @@ export default function App() {
         id: `msg-${Date.now()}-a`,
         role: 'assistant',
         content: data.reply,
+        provider: effectiveProvider,
         timestamp: new Date().toISOString(),
       };
 
@@ -1354,12 +1505,18 @@ export default function App() {
                 )}
               </div>
             ) : (
-              /* COMPLETED READING: STACKED CLICKABLE CARDS + FLOWING CHAT */
+              /* COMPLETED READING: CARD SPREAD + DUAL-TAB PRIVATE LLM + FOLLOW-UP CHAT */
               <OpenedCardSpread
                 thread={activeThread}
                 isSendingChat={isSendingChat}
                 chatError={chatError}
                 onSendChat={handleSendChat}
+                isPostingToPrivateLlm={isPostingToPrivateLlm}
+                privateLlmError={privateLlmError}
+                onPostToPrivateLlm={handlePostToPrivateLlm}
+                isUpdatingFutureWindow={isUpdatingFollowUpWindow}
+                futureWindowError={followUpWindowError}
+                onUpdateFutureWindow={handleUpdateFollowUpFutureWindow}
               />
             )}
           </div>

@@ -56,6 +56,13 @@ export interface AstroProfile {
   updatedAt: string;
 }
 
+export interface CardReading {
+  verdictSummary: string;
+  planetaryTriggers: string;
+  timingWindow: string;
+  guidance: string;
+}
+
 export interface MagicCard {
   id: string;
   domain: CardDomain;
@@ -63,12 +70,8 @@ export interface MagicCard {
   eventDate: string; // Typed YYYY-MM-DD inside narrativeWindow
   narrative: string;
   question: string;
-  reading?: {
-    verdictSummary: string;
-    planetaryTriggers: string;
-    timingWindow: string;
-    guidance: string;
-  };
+  reading?: CardReading;
+  privateReading?: CardReading;
 }
 
 export interface TransitWindow {
@@ -81,6 +84,7 @@ export interface ThreadMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  provider?: LlmProvider;
   referencedCardIds?: string[];
   timestamp: string;
 }
@@ -92,9 +96,12 @@ export interface AstroThread {
   createdAt: string;
   submittedAt?: string;
   step: ThreadStep;
+  primaryProvider?: LlmProvider;
   narrativeWindow: TransitWindow;
   cards: MagicCard[];
   futureWindow: TransitWindow;
   overallSynthesis?: string;
+  privateOverallSynthesis?: string;
+  privateModel?: string;
   messages: ThreadMessage[];
 }

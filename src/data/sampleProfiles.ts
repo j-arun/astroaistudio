@@ -220,3 +220,28 @@ export function formatYearMonthToLongLabel(ym: string): string {
 export function isValidPersonId(val: string): boolean {
   return /^[A-Za-z0-9]{5,7}$/.test(val.trim());
 }
+
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+const YEAR_OPTIONS = Array.from({ length: 11 }, (_, i) => 2020 + i);
+
+export const MONTH_YEAR_OPTIONS: Array<{ value: string; label: string }> = YEAR_OPTIONS.flatMap(
+  (y) =>
+    MONTH_NAMES.map((name, m) => ({
+      value: `${y}-${String(m + 1).padStart(2, '0')}`,
+      label: `${name} ${y}`,
+    }))
+);
