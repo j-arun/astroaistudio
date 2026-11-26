@@ -6,7 +6,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import { buildAnalyzePromptParts } from './src/data/promptBuilder.ts';
-import { buildTimelineDecisionPrompt } from './src/data/timelinePromptBuilder.ts';
+import { buildGrahaTimelineExtractionPrompt } from './src/data/timelinePromptBuilder.ts';
 
 dotenv.config();
 
@@ -639,23 +639,30 @@ async function startServer() {
     }
   });
 
-  // Secondary Timeline Decision Engine (Private LLM / Ollama only, fed Public LLM reasoning text)
+  // Secondary Request 2: Same-Engine Graha Influence Timeline Extraction (Gemini / Fable / Ollama)
   app.post('/api/astro/timeline-decision', async (req, res) => {
     const {
       domain,
       title,
       eventDate,
+      narrative,
       question,
-      pastRangeLabel,
-      futureRangeLabel,
+      pastStartMonth,
+      pastEndMonth,
+      futureStartMonth,
+      futureEndMonth,
+      natalDump,
+      pastTransitDump,
+      futureTransitDump,
       verdictSummary,
       timingWindow,
+      guidance,
       planetaryTriggers,
       llmConfig,
     } = req.body || {};
 
     if (!planetaryTriggers || typeof planetaryTriggers !== 'string') {
-      res.status(400).json({ error: 'Missing public reasoning narrative for timeline engine.' });
+      res.status(400).json({ error: 'Missing Request 1 reasoning narrative for timeline extraction.' });
       return;
     }
 
@@ -666,104 +673,303 @@ async function startServer() {
       ...(llmConfig || {}),
     };
 
-    const { systemInstruction, userPrompt } = buildTimelineDecisionPrompt({
+    const targetProvider =
+      activeCfg.llmProvider === 'fable'
+        ? 'fable'
+        : activeCfg.llmProvider === 'ollama'
+        ? 'ollama'
+        : 'gemini';
+
+    const { systemInstruction, userPrompt, windowBounds } = buildGrahaTimelineExtractionPrompt({
       domain: domain || 'General',
       title: title || 'Event',
       eventDate: eventDate || '',
+      narrative: narrative || '',
       question: question || '',
-      pastRangeLabel: pastRangeLabel || 'Past Period',
-      futureRangeLabel: futureRangeLabel || 'Future Period',
+      pastStartMonth: pastStartMonth || '',
+      pastEndMonth: pastEndMonth || '',
+      futureStartMonth: futureStartMonth || '',
+      futureEndMonth: futureEndMonth || '',
+      natalDump: typeof natalDump === 'string' ? natalDump : '',
+      pastTransitDump: typeof pastTransitDump === 'string' ? pastTransitDump : '',
+      futureTransitDump: typeof futureTransitDump === 'string' ? futureTransitDump : '',
       verdictSummary: verdictSummary || '',
       timingWindow: timingWindow || '',
+      guidance: typeof guidance === 'string' ? guidance : '',
       planetaryTriggers,
     });
 
+    const isValidIsoDate = (val: unknown): val is string => {
+      if (typeof val !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(val.trim())) return false;
+      const [y, m, d] = val.trim().split('-').map(Number);
+      const dt = new Date(y, m - 1, d);
+      return !Number.isNaN(dt.getTime()) && dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+    };
+
     try {
-      const rawOllama = await callOllamaAdapter(
-        activeCfg,
-        [
-          { role: 'system', content: systemInstruction },
-          { role: 'user', content: userPrompt },
-        ],
-        true
-      );
-      const parsed = parseLooseJson(rawOllama);
+      let parsed: Record<string, unknown>;
+      let usedModel = '';
 
-      const rawStages = Array.isArray(parsed.stages) ? parsed.stages : [];
-      const stages = rawStages.map((s: Record<string, unknown>, idx: number) => {
-        const score = Number(s?.flowScore);
-        const clampedScore = Number.isFinite(score)
-          ? Math.min(95, Math.max(8, score))
-          : idx === 0
-          ? 34
-          : idx === 1
-          ? 48
-          : idx === 2
-          ? 64
-          : 78;
-        const dir =
-          s?.direction === 'pullback' || s?.direction === 'shift' || s?.direction === 'flow'
-            ? s.direction
-            : clampedScore < 45
-            ? 'pullback'
-            : clampedScore < 60
-            ? 'shift'
-            : 'flow';
+      if (targetProvider === 'ollama') {
+        usedModel = activeCfg.ollamaModel || 'ollama';
+        const rawOllama = await callOllamaAdapter(
+          activeCfg,
+          [
+            { role: 'system', content: systemInstruction },
+            { role: 'user', content: userPrompt },
+          ],
+          true
+        );
+        parsed = parseLooseJson(rawOllama);
+      } else if (targetProvider === 'fable') {
+        usedModel = activeCfg.fableModel || 'fable';
+        const rawFable = await callFableAdapter(
+          activeCfg,
+          [
+            { role: 'system', content: systemInstruction },
+            { role: 'user', content: userPrompt },
+          ],
+          true
+        );
+        parsed = parseLooseJson(rawFable);
+      } else {
+        const ai = getAiClient();
+        if (!ai) {
+          res.status(503).json({
+            error:
+              'GEMINI_API_KEY is not configured. Add your Gemini API key in Settings > Secrets.',
+          });
+          return;
+        }
+        usedModel =
+          activeCfg.geminiModel && activeCfg.geminiModel.trim()
+            ? activeCfg.geminiModel.trim()
+            : 'gemini-4-hydrogen';
 
-        return {
-          phase: typeof s?.phase === 'string' ? s.phase : `Stage ${idx + 1}`,
-          dateRange: typeof s?.dateRange === 'string' ? s.dateRange : '',
-          stateLabel: typeof s?.stateLabel === 'string' ? s.stateLabel : 'Transition',
-          direction: dir,
-          flowScore: clampedScore,
-          trigger: typeof s?.trigger === 'string' ? s.trigger : 'Transit Shift',
-          explanation: typeof s?.explanation === 'string' ? s.explanation : '',
-        };
-      });
+        const response = await ai.models.generateContent({
+          model: usedModel,
+          contents: userPrompt,
+          config: {
+            systemInstruction,
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                outcome_label: { type: Type.STRING },
+                window: {
+                  type: Type.OBJECT,
+                  properties: {
+                    start: { type: Type.STRING },
+                    end: { type: Type.STRING },
+                  },
+                  required: ['start', 'end'],
+                },
+                dasha_line: { type: Type.STRING },
+                planets: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      name: { type: Type.STRING },
+                      role: { type: Type.STRING },
+                    },
+                    required: ['name', 'role'],
+                  },
+                },
+                retrograde: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      planet: { type: Type.STRING },
+                      from: { type: Type.STRING },
+                      to: { type: Type.STRING },
+                    },
+                    required: ['planet', 'from'],
+                  },
+                },
+                links: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      from: { type: Type.STRING },
+                      to: { type: Type.STRING },
+                      from_date: { type: Type.STRING },
+                    },
+                    required: ['from', 'to', 'from_date'],
+                  },
+                },
+                factors: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      planet: { type: Type.STRING },
+                      polarity: { type: Type.STRING },
+                      strength: { type: Type.NUMBER },
+                      start: { type: Type.STRING },
+                      end: { type: Type.STRING },
+                      tag: { type: Type.STRING },
+                      reasoning: { type: Type.STRING },
+                      why_strength: { type: Type.STRING },
+                    },
+                    required: [
+                      'planet',
+                      'polarity',
+                      'strength',
+                      'start',
+                      'end',
+                      'tag',
+                      'reasoning',
+                      'why_strength',
+                    ],
+                  },
+                },
+                review_flags: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                },
+              },
+              required: [
+                'title',
+                'outcome_label',
+                'window',
+                'dasha_line',
+                'planets',
+                'retrograde',
+                'links',
+                'factors',
+                'review_flags',
+              ],
+            },
+          },
+        });
+        parsed = parseLooseJson((response.text ?? '{}').trim());
+      }
 
-      const rawKeyHolder =
-        parsed.keyHolder && typeof parsed.keyHolder === 'object'
-          ? (parsed.keyHolder as Record<string, unknown>)
+      const rawWin =
+        parsed.window && typeof parsed.window === 'object'
+          ? (parsed.window as Record<string, unknown>)
           : {};
+      const winStart = isValidIsoDate(rawWin.start) ? rawWin.start.trim() : windowBounds.start;
+      const winEnd =
+        isValidIsoDate(rawWin.end) && rawWin.end.trim() >= winStart
+          ? rawWin.end.trim()
+          : windowBounds.end >= winStart
+          ? windowBounds.end
+          : winStart;
 
-      const timelineFlow = {
-        generatedByModel: activeCfg.ollamaModel || 'ollama',
-        keyHolder: {
-          name:
-            typeof rawKeyHolder.name === 'string' && rawKeyHolder.name.trim()
-              ? rawKeyHolder.name
-              : 'Primary Chart Factor',
-          role:
-            typeof rawKeyHolder.role === 'string' && rawKeyHolder.role.trim()
-              ? rawKeyHolder.role
-              : 'Primary Decision Lever',
-          why: typeof rawKeyHolder.why === 'string' ? rawKeyHolder.why : '',
+      const rawFactors = Array.isArray(parsed.factors) ? parsed.factors : [];
+      const factors = rawFactors
+        .map((f: Record<string, unknown>) => {
+          const planet = typeof f?.planet === 'string' && f.planet.trim() ? f.planet.trim() : '';
+          if (!planet) return null;
+          const polarity: 'support' | 'friction' =
+            String(f?.polarity || '').toLowerCase() === 'support' ? 'support' : 'friction';
+          const numStrength = Number(f?.strength);
+          const strength = Number.isFinite(numStrength)
+            ? Math.min(5, Math.max(1, Math.round(numStrength * 10) / 10))
+            : 2;
+          const start = isValidIsoDate(f?.start) ? f.start.trim() : winStart;
+          const endRaw = isValidIsoDate(f?.end) ? f.end.trim() : winEnd;
+          const end = endRaw < start ? start : endRaw;
+          return {
+            planet,
+            polarity,
+            strength,
+            start,
+            end,
+            tag: typeof f?.tag === 'string' ? f.tag.trim() : '',
+            reasoning: typeof f?.reasoning === 'string' ? f.reasoning.trim() : '',
+            why_strength: typeof f?.why_strength === 'string' ? f.why_strength.trim() : '',
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+
+      const planetMap = new Map<string, { name: string; role?: string }>();
+      if (Array.isArray(parsed.planets)) {
+        for (const p of parsed.planets as Array<Record<string, unknown>>) {
+          const name = typeof p?.name === 'string' ? p.name.trim() : '';
+          if (name && !planetMap.has(name)) {
+            planetMap.set(name, {
+              name,
+              role: typeof p?.role === 'string' ? p.role.trim() : undefined,
+            });
+          }
+        }
+      }
+      for (const f of factors) {
+        if (!planetMap.has(f.planet)) {
+          planetMap.set(f.planet, { name: f.planet });
+        }
+      }
+
+      const retrograde = Array.isArray(parsed.retrograde)
+        ? (parsed.retrograde as Array<Record<string, unknown>>)
+            .map((r) => {
+              const planet = typeof r?.planet === 'string' ? r.planet.trim() : '';
+              if (!planet || !isValidIsoDate(r?.from)) return null;
+              const entry: { planet: string; from: string; to?: string } = {
+                planet,
+                from: r.from.trim(),
+              };
+              if (isValidIsoDate(r?.to) && r.to.trim() >= entry.from) {
+                entry.to = r.to.trim();
+              }
+              return entry;
+            })
+            .filter((item): item is NonNullable<typeof item> => item !== null)
+        : [];
+
+      const links = Array.isArray(parsed.links)
+        ? (parsed.links as Array<Record<string, unknown>>)
+            .map((l) => {
+              const from = typeof l?.from === 'string' ? l.from.trim() : '';
+              const to = typeof l?.to === 'string' ? l.to.trim() : '';
+              if (!from || !to || !isValidIsoDate(l?.from_date)) return null;
+              return { from, to, from_date: l.from_date.trim() };
+            })
+            .filter((item): item is NonNullable<typeof item> => item !== null)
+        : [];
+
+      const review_flags = Array.isArray(parsed.review_flags)
+        ? (parsed.review_flags as unknown[])
+            .map((item) => (typeof item === 'string' ? item.trim() : ''))
+            .filter(Boolean)
+        : [];
+
+      const grahaTimeline = {
+        generatedByProvider: targetProvider,
+        generatedByModel: usedModel,
+        title:
+          typeof parsed.title === 'string' && parsed.title.trim()
+            ? parsed.title.trim()
+            : 'Graha influence timeline',
+        outcome_label:
+          typeof parsed.outcome_label === 'string' && parsed.outcome_label.trim()
+            ? parsed.outcome_label.trim()
+            : domain || 'Outcome',
+        window: {
+          start: winStart,
+          end: winEnd,
         },
-        factors: Array.isArray(parsed.factors)
-          ? (parsed.factors as Array<Record<string, unknown>>).map((f) => ({
-              name: typeof f?.name === 'string' ? f.name : 'Factor',
-              role: typeof f?.role === 'string' ? f.role : 'Anchor',
-              impact: typeof f?.impact === 'string' ? f.impact : '',
-            }))
-          : [],
-        stages,
-        edges: Array.isArray(parsed.edges)
-          ? (parsed.edges as Array<Record<string, unknown>>).map((e) => ({
-              from: typeof e?.from === 'string' ? e.from : 'Trigger',
-              relation: typeof e?.relation === 'string' ? e.relation : 'influences',
-              to: typeof e?.to === 'string' ? e.to : 'Outcome',
-              effect: typeof e?.effect === 'string' ? e.effect : '',
-            }))
-          : [],
+        dasha_line: typeof parsed.dasha_line === 'string' ? parsed.dasha_line.trim() : '',
+        planets: Array.from(planetMap.values()),
+        retrograde,
+        links,
+        factors,
+        review_flags,
       };
 
-      res.json({ timelineFlow });
+      res.json({ grahaTimeline });
     } catch (err: unknown) {
-      console.error('Timeline decision error:', err);
+      console.error('Timeline extraction error:', err);
       const message =
         err instanceof Error
           ? err.message
-          : 'Private LLM (Ollama) failed to generate timeline decision flow.';
+          : 'Failed to extract Graha timeline plot data.';
       res.status(502).json({ error: message });
     }
   });

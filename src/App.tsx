@@ -15,6 +15,7 @@ import {
   AstroProfile,
   AstroThread,
   CardReading,
+  GrahaTimelineData,
   LlmProvider,
   MagicCard,
   StudioApiConfig,
@@ -659,8 +660,64 @@ export default function App() {
     }
   };
 
-  // Secondary decoupled call: feed ONLY the public LLM's reasoning narrative to Private LLM (Ollama)
-  // to construct a timeline-based decision engine without touching the public prediction prompt.
+  // Attach GrahaTimelineData onto a specific thread/card reading (primary or private) and persist
+  const attachGrahaTimelineToThread = (
+    targetThreadId: string,
+    targetCardId: string,
+    sourceTab: 'primary' | 'private',
+    grahaTimeline: GrahaTimelineData,
+    fallbackThread?: AstroThread
+  ) => {
+    const attach = (thread: AstroThread): AstroThread => ({
+      ...thread,
+      cards: thread.cards.map((c) => {
+        if (c.id !== targetCardId) return c;
+        if (sourceTab === 'private' && c.privateReading) {
+          return {
+            ...c,
+            privateReading: {
+              ...c.privateReading,
+              grahaTimeline,
+            },
+          };
+        }
+        if (c.reading) {
+          return {
+            ...c,
+            reading: {
+              ...c.reading,
+              grahaTimeline,
+            },
+          };
+        }
+        return c;
+      }),
+    });
+
+    setActiveThread((prev) => (prev.id === targetThreadId ? attach(prev) : prev));
+    setSavedThreads((prevThreads) => {
+      const exists = prevThreads.some((t) => t.id === targetThreadId);
+      const nextThreads = exists
+        ? prevThreads.map((t) => (t.id === targetThreadId ? attach(t) : t))
+        : fallbackThread
+        ? [attach(fallbackThread), ...prevThreads]
+        : prevThreads;
+      try {
+        localStorage.setItem(STORAGE_THREADS_KEY, JSON.stringify(nextThreads));
+        void fetch('/api/threads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ threads: nextThreads }),
+        });
+      } catch {
+        // local state updated
+      }
+      return nextThreads;
+    });
+  };
+
+  // Secondary Request 2 (Same-Engine Extraction): feed Request 1 context + reasoning to the exact
+  // same engine that produced Request 1 (Gemini -> Gemini, Fable -> Fable, Ollama -> Ollama)
   const runPrivateTimelineDecision = async (
     targetThread: AstroThread,
     targetCardId?: string,
@@ -674,6 +731,11 @@ export default function App() {
       return;
     }
 
+    const targetProvider: LlmProvider =
+      sourceTab === 'private'
+        ? 'ollama'
+        : targetThread.primaryProvider || apiConfig.llmProvider;
+
     setBuildingTimelineThreadId(targetThread.id);
     setTimelineBuildError(null);
 
@@ -685,19 +747,25 @@ export default function App() {
           domain: targetCard.domain,
           title: targetCard.title,
           eventDate: targetCard.eventDate,
+          narrative: targetCard.narrative,
           question: targetCard.question,
-          pastRangeLabel: formatMonthRangeLabel(
-            targetThread.narrativeWindow.startMonth,
-            targetThread.narrativeWindow.endMonth
-          ),
-          futureRangeLabel: formatMonthRangeLabel(
-            targetThread.futureWindow.startMonth,
-            targetThread.futureWindow.endMonth
-          ),
+          pastStartMonth: targetThread.narrativeWindow.startMonth,
+          pastEndMonth: targetThread.narrativeWindow.endMonth,
+          futureStartMonth: targetThread.futureWindow.startMonth,
+          futureEndMonth: targetThread.futureWindow.endMonth,
+          natalDump: activeProfile?.natalDump || '',
+          pastTransitDump: targetThread.narrativeWindow.transitDump,
+          futureTransitDump: targetThread.futureWindow.transitDump,
           verdictSummary: sourceReading.verdictSummary,
           timingWindow: sourceReading.timingWindow,
+          guidance: sourceReading.guidance,
           planetaryTriggers: sourceReading.planetaryTriggers,
           llmConfig: {
+            llmProvider: targetProvider,
+            geminiModel: apiConfig.geminiModel,
+            fableEndpointUrl: apiConfig.fableEndpointUrl,
+            fableModel: apiConfig.fableModel,
+            fableApiKey: apiConfig.fableApiKey,
             ollamaBaseUrl: apiConfig.ollamaBaseUrl,
             ollamaModel: apiConfig.ollamaModel,
           },
@@ -707,64 +775,27 @@ export default function App() {
       const data = await res.json();
       if (!res.ok) {
         throw new Error(
-          data.error || 'Private LLM failed to generate timeline decision flow.'
+          data.error || 'Engine failed to convert Request 1 reasoning into animation plot data.'
         );
       }
 
-      const timelineFlow = data.timelineFlow;
-      if (!timelineFlow) {
-        throw new Error('Private LLM returned an empty timeline decision flow.');
+      const grahaTimeline = data.grahaTimeline as GrahaTimelineData | undefined;
+      if (!grahaTimeline || !grahaTimeline.factors?.length) {
+        throw new Error('Engine returned empty animation factors.');
       }
 
-      const attachFlow = (thread: AstroThread): AstroThread => ({
-        ...thread,
-        cards: thread.cards.map((c) => {
-          if (c.id !== targetCard.id) return c;
-          if (sourceTab === 'private' && c.privateReading) {
-            return {
-              ...c,
-              privateReading: {
-                ...c.privateReading,
-                timelineFlow,
-              },
-            };
-          }
-          if (c.reading) {
-            return {
-              ...c,
-              reading: {
-                ...c.reading,
-                timelineFlow,
-              },
-            };
-          }
-          return c;
-        }),
-      });
-
-      setActiveThread((prev) => (prev.id === targetThread.id ? attachFlow(prev) : prev));
-      setSavedThreads((prevThreads) => {
-        const exists = prevThreads.some((t) => t.id === targetThread.id);
-        const nextThreads = exists
-          ? prevThreads.map((t) => (t.id === targetThread.id ? attachFlow(t) : t))
-          : [attachFlow(targetThread), ...prevThreads];
-        try {
-          localStorage.setItem(STORAGE_THREADS_KEY, JSON.stringify(nextThreads));
-          void fetch('/api/threads', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ threads: nextThreads }),
-          });
-        } catch {
-          // local state updated
-        }
-        return nextThreads;
-      });
+      attachGrahaTimelineToThread(
+        targetThread.id,
+        targetCard.id,
+        sourceTab,
+        grahaTimeline,
+        targetThread
+      );
     } catch (err: unknown) {
       setTimelineBuildError(
         err instanceof Error
           ? err.message
-          : 'Unable to reach Private LLM for timeline decision engine.'
+          : 'Unable to extract 2D animation data from reasoning.'
       );
     } finally {
       setBuildingTimelineThreadId((prev) => (prev === targetThread.id ? null : prev));
@@ -841,6 +872,14 @@ export default function App() {
         nextSaved.unshift(updatedThread);
       }
       persistThreads(nextSaved);
+
+      if (updatedThread.cards[0]?.privateReading?.planetaryTriggers) {
+        void runPrivateTimelineDecision(
+          updatedThread,
+          updatedThread.cards[0].id,
+          'private'
+        );
+      }
     } catch (err: unknown) {
       setPrivateLlmError(
         err instanceof Error ? err.message : 'Unable to reach Private LLM (Ollama).'
@@ -1768,6 +1807,15 @@ export default function App() {
                 timelineBuildError={timelineBuildError}
                 onRetryTimelineBuild={(cardId, sourceTab) =>
                   runPrivateTimelineDecision(activeThread, cardId, sourceTab)
+                }
+                onApplyManualTimelineJson={(cardId, sourceTab, data) =>
+                  attachGrahaTimelineToThread(
+                    activeThread.id,
+                    cardId,
+                    sourceTab,
+                    data,
+                    activeThread
+                  )
                 }
               />
             )}

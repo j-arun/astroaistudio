@@ -1,106 +1,124 @@
-export interface TimelinePromptInput {
+export interface GrahaExtractionPromptInput {
   domain: string;
   title: string;
   eventDate: string;
+  narrative: string;
   question: string;
-  pastRangeLabel: string;
-  futureRangeLabel: string;
+  pastStartMonth: string;
+  pastEndMonth: string;
+  futureStartMonth: string;
+  futureEndMonth: string;
+  natalDump?: string;
+  pastTransitDump?: string;
+  futureTransitDump?: string;
   verdictSummary: string;
   timingWindow: string;
+  guidance?: string;
   planetaryTriggers: string;
 }
 
-export function buildTimelineDecisionPrompt(input: TimelinePromptInput): {
+export function getMonthWindowBounds(
+  startMonth: string,
+  endMonth: string
+): { start: string; end: string } {
+  const safeStart = /^\d{4}-\d{2}$/.test(startMonth) ? `${startMonth}-01` : '2026-01-01';
+  if (/^\d{4}-\d{2}$/.test(endMonth)) {
+    const [y, m] = endMonth.split('-').map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    return {
+      start: safeStart,
+      end: `${endMonth}-${String(lastDay).padStart(2, '0')}`,
+    };
+  }
+  return { start: safeStart, end: safeStart };
+}
+
+export function anonymizeAstroText(rawText: string): string {
+  if (!rawText) return '';
+  return rawText
+    .replace(/PROFILE:\s*[^\n|]+(\|[^\n]*)?/gi, 'PROFILE: [REDACTED]')
+    .replace(
+      /^(NAME|FULL NAME|DATE OF BIRTH|DOB|BIRTH DATE|BIRTH PLACE|PLACE OF BIRTH|TIME OF BIRTH|TOB|POB|LOCATION)\s*:.*$/gim,
+      '$1: [REDACTED]'
+    )
+    .trim();
+}
+
+export function buildGrahaTimelineExtractionPrompt(input: GrahaExtractionPromptInput): {
   systemInstruction: string;
   userPrompt: string;
+  windowBounds: { start: string; end: string };
 } {
-  const systemInstruction = `You are a time-based, timeline-based decision engine analyzing an astrological reasoning narrative produced by a public LLM.
+  const windowBounds = getMonthWindowBounds(input.futureStartMonth, input.futureEndMonth);
+  const anonymizedNatal = anonymizeAstroText(input.natalDump || '');
+  const anonymizedPastTransits = anonymizeAstroText(input.pastTransitDump || '');
+  const anonymizedFutureTransits = anonymizeAstroText(input.futureTransitDump || '');
 
-STRICT GROUNDING RULES:
-1. Work ONLY from the narrative reasoning and card timeline provided below. Do NOT invent new planets, houses, dashas, or placements not mentioned in the narrative.
-2. Focus on how the decision/outcome transforms over time:
-   - Where momentum gets PULLED BACK (holds, delays, friction, restraint)
-   - Where a PIVOT / SHIFT occurs
-   - Where momentum FLOWS FORWARD (openings, breakthroughs, manifestations)
-3. Identify WHO holds the primary key/lever for the question based on the narrative.
-4. Return strictly valid JSON matching the exact schema requested.`;
+  const systemInstruction = `You are converting your own astrological prediction and reasoning from Request 1 into exact day-by-day plot data for a 2D orbital timeline animation.
+Do NOT add new astrology and do NOT change your earlier conclusion.
+Audit your own stated dates, signs, retrograde windows, and durations against the chart/transit context when populating "review_flags".
+Return ONLY one valid JSON object matching the exact schema requested, with zero markdown fences or extra commentary.
+Strip any personal names, birth date, and birth place from all output fields.`;
 
-  const userPrompt = `CONTEXT CARD:
+  const userPrompt = `=== ORIGINAL CONTEXT GIVEN IN REQUEST 1 (ANONYMIZED) ===
+${anonymizedNatal ? `NATAL CHART REFERENCE:\n${anonymizedNatal}\n\n` : ''}${
+    anonymizedPastTransits
+      ? `PAST WINDOW TRANSITS (${input.pastStartMonth} to ${input.pastEndMonth}):\n${anonymizedPastTransits}\n\n`
+      : ''
+  }PAST CALIBRATION EVENT (${input.eventDate}):
 - Domain: ${input.domain}
-- Past Event (${input.eventDate}, inside ${input.pastRangeLabel}): ${input.title}
-- User Question for Future Period (${input.futureRangeLabel}): ${input.question}
-- Public LLM Real-World Outlook: ${input.verdictSummary}
-- Peak Timing Window: ${input.timingWindow || input.futureRangeLabel}
+- Event: ${input.title}
+- Narrative: ${input.narrative}
 
-PUBLIC LLM REASONING NARRATIVE:
+TARGET QUESTION FOR FUTURE WINDOW (${windowBounds.start} to ${windowBounds.end}):
+${input.question}
+
+${
+  anonymizedFutureTransits
+    ? `FUTURE WINDOW TRANSITS (${windowBounds.start} to ${windowBounds.end}):\n${anonymizedFutureTransits}\n\n`
+    : ''
+}=== YOUR OWN REQUEST 1 PREDICTION & REASONING ===
+Real-World Verdict Summary: ${input.verdictSummary}
+Predicted Timing Window: ${input.timingWindow || `${windowBounds.start} to ${windowBounds.end}`}
+${input.guidance ? `Practical Guidance: ${input.guidance}\n` : ''}Astrological Reasoning ("planetaryTriggers"):
 ${input.planetaryTriggers}
 
-Build a chronological 4-stage timeline decision flow showing how this outcome gets pulled back or flows across time (${input.pastRangeLabel} -> bridge -> ${input.futureRangeLabel}).
-For each stage, set:
-- "direction": "pullback" | "shift" | "flow"
-- "flowScore": integer 0 to 100 (0-44 = Pulled Back / Hold, 45-59 = Pivot / Shift, 60-100 = Flow / Opening)
+=== EXTRACTION TASK (REQUEST 2) ===
+Now convert YOUR OWN reasoning above into plot data for an animation. Do not add new astrology and do not change your conclusion. Return ONLY one JSON object, no other text, in this exact shape:
 
-Return JSON strictly matching:
 {
-  "keyHolder": {
-    "name": "Primary planet/dasha/house holding the key from the narrative",
-    "role": "Short role label (e.g. Primary Gatekeeper & Trigger)",
-    "why": "1-2 concise sentences explaining why this factor holds the key"
-  },
+  "title": "",
+  "outcome_label": "<one or two words naming the predicted outcome>",
+  "window": {"start": "${windowBounds.start}", "end": "${windowBounds.end}"},
+  "dasha_line": "",
+  "planets": [{"name": "", "role": "main pull | main friction | turning point | background controller | supporting"}],
+  "retrograde": [{"planet": "", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD or omit"}],
+  "links": [{"from": "", "to": "", "from_date": "YYYY-MM-DD"}],
   "factors": [
     {
-      "name": "Planet / House / Transit / Bindu from the narrative",
-      "role": "Key Holder | Pullback Driver | Flow Catalyst | Anchor",
-      "impact": "1 short sentence on whether it pulls back or moves forward"
+      "planet": "",
+      "polarity": "support | friction",
+      "strength": 1 to 5,
+      "start": "YYYY-MM-DD",
+      "end": "YYYY-MM-DD",
+      "tag": "2 to 3 words",
+      "reasoning": "your own claim, one sentence",
+      "why_strength": "why you rated it this strongly"
     }
   ],
-  "stages": [
-    {
-      "phase": "Initial Hold",
-      "dateRange": "Early baseline / prior period",
-      "stateLabel": "2-4 word state label",
-      "direction": "pullback",
-      "flowScore": 30,
-      "trigger": "Exact factor from narrative holding or starting the pattern",
-      "explanation": "1-2 sentences on why things are held or primed here"
-    },
-    {
-      "phase": "Past Calibration",
-      "dateRange": "${input.pastRangeLabel}",
-      "stateLabel": "2-4 word state label",
-      "direction": "shift",
-      "flowScore": 48,
-      "trigger": "Transit/event trigger during ${input.eventDate}",
-      "explanation": "1-2 sentences on how the past event reflected this pattern"
-    },
-    {
-      "phase": "Turning Point",
-      "dateRange": "Transition window",
-      "stateLabel": "2-4 word state label",
-      "direction": "shift",
-      "flowScore": 62,
-      "trigger": "Transit/aspect/bhukti shift changing the state",
-      "explanation": "1-2 sentences on what shifts the pullback"
-    },
-    {
-      "phase": "Target Flow",
-      "dateRange": "${input.timingWindow || input.futureRangeLabel}",
-      "stateLabel": "2-4 word state label",
-      "direction": "flow",
-      "flowScore": 82,
-      "trigger": "Primary trigger inside ${input.futureRangeLabel}",
-      "explanation": "1-2 sentences on the resulting state in the target period"
-    }
-  ],
-  "edges": [
-    {
-      "from": "Source planet/transit",
-      "relation": "Aspect / Transit / Pullback / Unlocks",
-      "to": "Target house/planet/state",
-      "effect": "Short explanation of how this transforms the timeline"
-    }
-  ]
-}`;
+  "review_flags": []
+}
 
-  return { systemInstruction, userPrompt };
+Rules:
+- Include EVERY dated claim from your reasoning. Do not merge or skip.
+- Set "window.start" to "${windowBounds.start}" and "window.end" to "${windowBounds.end}" (YYYY-MM-DD) covering the target future window, unless your reasoning explicitly requires a wider/exact span.
+- "support" helps the predicted outcome, "friction" works against it.
+- Strength 1 to 5 (integers or decimals like 1.5, 2.5, 4) = how much that factor drove your prediction (5 = decisive, 1 = minor background).
+- Use only dates you stated or clearly implied, inside the window. If a date was only implied, say so in why_strength.
+- Ensure "end" is never before "start", and all dates are valid YYYY-MM-DD.
+- In "retrograde", omit "to" if the planet stays retrograde past the end of the window.
+- In "review_flags", list any date, sign or duration in your own reasoning that you now doubt when cross-checked against the chart/transit dump above.
+- Remove names, birth date and birth place.`;
+
+  return { systemInstruction, userPrompt, windowBounds };
 }

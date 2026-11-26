@@ -12,7 +12,7 @@ import {
   Sparkles,
   Trash2,
 } from 'lucide-react';
-import { AstroThread, LlmProvider } from '../types/astro';
+import { AstroThread, GrahaTimelineData, LlmProvider } from '../types/astro';
 import {
   MONTH_YEAR_OPTIONS,
   formatMonthRangeLabel,
@@ -38,6 +38,11 @@ interface OpenedCardSpreadProps {
   isBuildingTimeline: boolean;
   timelineBuildError: string | null;
   onRetryTimelineBuild: (cardId?: string, sourceTab?: 'primary' | 'private') => void;
+  onApplyManualTimelineJson?: (
+    cardId: string,
+    sourceTab: 'primary' | 'private',
+    data: GrahaTimelineData
+  ) => void;
 }
 
 export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
@@ -57,6 +62,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
   isBuildingTimeline,
   timelineBuildError,
   onRetryTimelineBuild,
+  onApplyManualTimelineJson,
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<'primary' | 'private'>('primary');
@@ -481,8 +487,10 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                         onClick={() => setReasoningModalOpen(true)}
                         title={
                           isBuildingTimeline
-                            ? 'Private LLM is building your timeline decision flow...'
-                            : 'Open Astrological Reasoning & Decision Timeline'
+                            ? `${
+                                activeTab === 'private' ? 'Private LLM' : primaryTabLabel
+                              } is extracting Request 2 animation plot data...`
+                            : 'Open 2D Astrological Reasoning Timeline'
                         }
                         className={`px-4 py-2 rounded-xl border text-xs font-medium inline-flex items-center gap-2 transition-colors backdrop-blur-md ${
                           isBuildingTimeline
@@ -493,7 +501,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                         {isBuildingTimeline ? (
                           <>
                             <RotateCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Astrological Reasoning · Building Timeline...</span>
+                            <span>Astrological Reasoning · Building Animation...</span>
                           </>
                         ) : (
                           <>
@@ -729,7 +737,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
         </form>
       </div>
 
-      {/* SEPARATE WINDOW: ASTROLOGICAL REASONING & TIMELINE DECISION ENGINE */}
+      {/* SEPARATE WINDOW: 2D GRAHA INFLUENCE TIMELINE & VERBATIM REASONING */}
       {activeCard && activeTheme && activeReading && (
         <AstroReasoningModal
           isOpen={reasoningModalOpen}
@@ -743,6 +751,9 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
           isBuildingTimeline={isBuildingTimeline}
           timelineError={timelineBuildError}
           onRetryTimeline={() => onRetryTimelineBuild(activeCard.id, activeTab)}
+          onApplyManualJson={(data) =>
+            onApplyManualTimelineJson?.(activeCard.id, activeTab, data)
+          }
         />
       )}
     </div>

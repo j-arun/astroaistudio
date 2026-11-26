@@ -1,0 +1,69 @@
+Build one self-contained HTML file (no libraries, no network calls, 
+vanilla JS and inline SVG) that animates an astrology engine's 
+reasoning over time. I have attached a working reference file. 
+Match its look, layout and behaviour exactly. Do not redesign it, 
+and do not add features. Improve code quality only if behaviour 
+stays identical.
+
+PURPOSE
+The page shows how one engine's reasoning plays out day by day 
+over a date window. All data comes from a JSON object that is 
+pasted into a "Load JSON" dialog. Nothing is hardcoded except a 
+built-in sample.
+
+LAYOUT (everything on ONE screen, no page scrolling)
+Layer 1 (largest): left = planet map (SVG), right = reasoning 
+panel (title, dasha line, state label, list of active factors, 
+legend). On a phone (max-width 640px) the panel goes below the map.
+Layer 2: thin line graph of outcome balance over the whole window 
+with a cursor at the selected date.
+Layer 3: Play/Pause/Replay button, date slider, current date, 
+Load JSON button.
+
+RULES (exact)
+- Day 0 = window.start. Day index = whole days after start. 
+  A factor is active when start <= day <= end (both inclusive).
+- Weight of a factor = +strength if polarity is "support", 
+  -strength if "friction".
+- Outcome balance on a day = sum of weights of all active factors.
+- Fixed thresholds: balance >= +2 leans toward the outcome (green), 
+  <= -3 leans away (red), otherwise mixed (grey). 
+  Never take thresholds from the JSON.
+- Planet nodes are spaced evenly on an ellipse, first at the top, 
+  clockwise. Radius = 16 + min(6, |planet balance|) * 3.5. 
+  Colour: green if planet balance > 0, red if < 0, grey if 0.
+- Line from each planet to the centre: if the planet has an active 
+  factor, thickness = 1 + min(6, |planet balance|) * 1.4, pulsing 
+  opacity, dashed if friction. Otherwise thin and grey.
+- Centre node shows the outcome label and the balance number, with 
+  a ring in the state colour.
+- Under each active node show its tags (unique, joined by " · ").
+- Retrograde: a "℞" after the planet name while the day is within 
+  [from, to]; the node drifts backward along its orbit by 
+  0.0035 radians per day since the retrograde start.
+- "links": a red line between two planets from from_date onward.
+- Play advances 4 days per second, stops at the last day, button 
+  then says "Replay". Dragging the slider jumps to that day.
+- Reasoning panel lists active factors for the day (▲ green for 
+  support, ▼ red for friction) with the reasoning sentence and a 
+  small line "strength n: why_strength". Review flags show first, 
+  prefixed with ⚑, in muted italic.
+- Dates outside the window are clipped and flagged.
+- Validation on Apply: window start/end valid YYYY-MM-DD; factors 
+  non-empty; each factor has planet, polarity (support|friction), 
+  strength 1 to 5, valid start and end, end not before start. 
+  On failure show the exact error in the dialog and do not change 
+  the current display.
+- Light and dark mode via CSS variables and prefers-color-scheme. 
+  Respect safe-area insets. Typographic apostrophes in visible text.
+
+JSON SHAPE
+{ "title", "outcome_label", "window": {"start","end"}, "dasha_line",
+  "planets": [{"name","role"}],
+  "retrograde": [{"planet","from","to"(optional)}],
+  "links": [{"from","to","from_date"}],
+  "factors": [{"planet","polarity","strength","start","end","tag",
+               "reasoning","why_strength"}],
+  "review_flags": [] }
+
+Output only the final HTML file.

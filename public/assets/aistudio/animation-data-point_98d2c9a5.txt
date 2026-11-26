@@ -1,0 +1,27 @@
+Now convert YOUR OWN reasoning above into plot data for an 
+animation. Do not add new astrology and do not change your 
+conclusion. Return ONLY one JSON object, no other text, in this 
+shape (the shape is exactly as below):
+
+{ "title": "", "outcome_label": "<one or two words naming the predicted outcome>",
+  "window": {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"},
+  "dasha_line": "",
+  "planets": [{"name": "", "role": "main pull | main friction | turning point | background controller | supporting"}],
+  "retrograde": [{"planet": "", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD or omit"}],
+  "links": [{"from": "", "to": "", "from_date": "YYYY-MM-DD"}],
+  "factors": [{"planet": "", "polarity": "support | friction", 
+    "strength": 1 to 5, "start": "YYYY-MM-DD", "end": "YYYY-MM-DD",
+    "tag": "2 to 3 words", "reasoning": "your own claim, one sentence",
+    "why_strength": "why you rated it this strongly"}],
+  "review_flags": [] }
+
+Rules:
+- Include EVERY dated claim from your reasoning. Do not merge or skip.
+- "support" helps the predicted outcome, "friction" works against it.
+- Strength 1 to 5 = how much that factor drove your prediction 
+  (5 = decisive, 1 = minor background).
+- Use only dates you stated or clearly implied, inside the window. 
+  If a date was only implied, say so in why_strength.
+- In review_flags, list any date, sign or duration in your own 
+  reasoning that you now doubt.
+- Remove names, birth date and birth place.

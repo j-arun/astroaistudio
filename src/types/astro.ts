@@ -56,39 +56,49 @@ export interface AstroProfile {
   updatedAt: string;
 }
 
-export interface TimelineStage {
-  phase: string;
-  dateRange: string;
-  stateLabel: string;
-  direction: 'pullback' | 'shift' | 'flow';
-  flowScore: number; // 0..100 (0-44 Pulled Back, 45-59 Shift, 60-100 Flow)
-  trigger: string;
-  explanation: string;
-}
-
-export interface TimelineFactor {
+export interface GrahaPlanetSpec {
   name: string;
-  role: string;
-  impact: string;
+  role?: string;
 }
 
-export interface TimelineTransitionEdge {
+export interface GrahaRetrogradeSpec {
+  planet: string;
+  from: string; // YYYY-MM-DD
+  to?: string; // optional YYYY-MM-DD
+}
+
+export interface GrahaLinkSpec {
   from: string;
-  relation: string;
   to: string;
-  effect: string;
+  from_date: string; // YYYY-MM-DD
 }
 
-export interface TimelineDecisionFlow {
+export interface GrahaFactorSpec {
+  planet: string;
+  polarity: 'support' | 'friction';
+  strength: number; // 1 to 5
+  start: string; // YYYY-MM-DD
+  end: string; // YYYY-MM-DD
+  tag?: string;
+  reasoning: string;
+  why_strength?: string;
+}
+
+export interface GrahaTimelineData {
+  generatedByProvider?: LlmProvider;
   generatedByModel?: string;
-  keyHolder: {
-    name: string;
-    role: string;
-    why: string;
+  title: string;
+  outcome_label: string;
+  window: {
+    start: string; // YYYY-MM-DD
+    end: string; // YYYY-MM-DD
   };
-  factors: TimelineFactor[];
-  stages: TimelineStage[];
-  edges: TimelineTransitionEdge[];
+  dasha_line: string;
+  planets: GrahaPlanetSpec[];
+  retrograde?: GrahaRetrogradeSpec[];
+  links?: GrahaLinkSpec[];
+  factors: GrahaFactorSpec[];
+  review_flags?: string[];
 }
 
 export interface CardReading {
@@ -96,7 +106,7 @@ export interface CardReading {
   planetaryTriggers: string;
   timingWindow: string;
   guidance: string;
-  timelineFlow?: TimelineDecisionFlow;
+  grahaTimeline?: GrahaTimelineData;
 }
 
 export interface MagicCard {

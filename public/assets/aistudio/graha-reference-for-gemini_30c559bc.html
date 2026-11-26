@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Graha Influence Timeline</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--bg:#faf8f4;--fg:#2a2622;--mut:#7a7168;--card:#fff;--ln:#ddd5ca;--pos:#2e8b57;--neg:#c0392b;--neu:#8a8178;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#16140f;--fg:#ece6dc;--mut:#a39a8e;--card:#201d17;--ln:#3a352c;--pos:#5fcf8f;--neg:#ff7b6b;--neu:#9a9186}}
+:root[data-theme="dark"]{--bg:#16140f;--fg:#ece6dc;--mut:#a39a8e;--card:#201d17;--ln:#3a352c;--pos:#5fcf8f;--neg:#ff7b6b;--neu:#9a9186}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;height:100%;display:flex;flex-direction:column;gap:8px;padding:10px;box-sizing:border-box;overflow:hidden;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+.layer{background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:8px}
+#L1{flex:1 1 0;min-height:0;display:flex;gap:10px}
+#map{flex:1.7 1 0;min-width:0;min-height:0;width:100%;height:100%}
+#rp{flex:1 1 0;min-width:0;overflow:auto}
+text{fill:var(--fg);font-family:inherit}
+h1{font-size:15px;margin:0}.sub{color:var(--mut);font-size:11px;margin:0 0 6px}
+#st{font-weight:600;font-size:15px;margin:2px 0 4px}.up{color:var(--pos)}.dn{color:var(--neg)}
+#ev{margin:0;padding-left:16px;font-size:13px}#ev li{margin:3px 0}#ev small{color:var(--mut);display:block}#ev .fl{color:var(--mut);font-style:italic;list-style:none;margin-left:-16px}
+.note{color:var(--mut);font-size:11px;margin-top:6px}
+#L2{height:54px;padding:4px 8px}#sp{width:100%;height:100%;display:block}
+#L3{display:flex;gap:10px;align-items:center}
+input[type=range]{flex:1;min-width:0}
+button{background:var(--fg);color:var(--bg);border:0;border-radius:8px;padding:8px 14px;font-size:14px}
+button.g{background:transparent;color:var(--fg);border:1px solid var(--ln)}
+#dt{min-width:92px;text-align:right;font-weight:600}
+#ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:20}
+#ov.on{display:flex}#bx{background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:12px;width:min(680px,92vw)}
+textarea{width:100%;height:46vh;box-sizing:border-box;font:12px monospace;background:var(--bg);color:var(--fg);border:1px solid var(--ln);border-radius:8px}
+#er{color:var(--neg);font-size:12px;min-height:16px}
+@media (max-width:640px){#L1{flex-direction:column}#map{flex:1.2 1 0}#rp{flex:1 1 0}#ev{font-size:12px}#L3{gap:6px}button{padding:8px 10px}}
+</style></head><body>
+<div class="layer" id="L1"><svg id="map" viewBox="0 0 600 370" role="img" aria-label="Planet influence map"></svg>
+<div id="rp"><h1 id="ti"></h1><p class="sub" id="su"></p><div id="st"></div><ul id="ev"></ul>
+<div class="note">Centre = outcome balance on this date: ▲ support minus ▼ friction. +2 or more leans toward the predicted outcome, −3 or less leans away. Green = support, red = friction, dashed = friction line, thick = strong, ℞ = retrograde.</div></div></div>
+<div class="layer" id="L2"><svg id="sp" viewBox="0 0 600 46" preserveAspectRatio="none" role="img" aria-label="Outcome balance over time"></svg></div>
+<div class="layer" id="L3"><button id="pl">Play</button><input id="sl" type="range" min="0" max="89" step="0.01" value="0" aria-label="Date"><span id="dt"></span><button class="g" id="ld">Load JSON</button></div>
+<div id="ov"><div id="bx"><b>Paste the JSON from the extraction step</b><textarea id="ta" spellcheck="false"></textarea><div id="er"></div><div style="display:flex;gap:8px;justify-content:flex-end"><button class="g" id="cx">Cancel</button><button id="ap">Apply</button></div></div></div>
+<script>
+const SAMPLE={title:"Graha influence timeline",outcome_label:"Outcome",window:{start:"2026-12-01",end:"2027-02-28"},
+dasha_line:"Venus MD > Saturn AD > Mercury PD, then Ketu PD from Jan 14",
+planets:[{name:"Venus"},{name:"Mercury"},{name:"Mars"},{name:"Jupiter"},{name:"Rahu"},{name:"Ketu"}],
+retrograde:[{planet:"Mars",from:"2027-01-10"},{planet:"Jupiter",from:"2027-01-25"},{planet:"Mercury",from:"2027-02-09"}],
+links:[{from:"Rahu",to:"Mercury",from_date:"2026-12-05"}],
+factors:[
+{planet:"Venus",polarity:"support",strength:4,start:"2026-12-01",end:"2026-12-31",tag:"Libra, own sign",reasoning:"Venus in own sign Libra (L11, SAV 35), aspecting L5: renewed digital attention"},
+{planet:"Rahu",polarity:"friction",strength:1,start:"2026-12-05",end:"2027-02-28",tag:"on natal Mercury",reasoning:"Rahu moves onto natal Mercury (7th lord) in L2 Capricorn"},
+{planet:"Ketu",polarity:"friction",strength:1,start:"2026-12-05",end:"2027-02-28",tag:"on natal Saturn",reasoning:"Ketu moves onto natal Saturn in L8 Cancer"},
+{planet:"Mercury",polarity:"friction",strength:1.5,start:"2026-12-06",end:"2027-01-23",tag:"combust",reasoning:"Mercury combust (Dec 6 to Jan 23)"},
+{planet:"Venus",polarity:"support",strength:4,start:"2027-01-02",end:"2027-01-29",tag:"over natal Moon",reasoning:"Venus over natal Moon in L12 Scorpio (SAV 30): emotional pull"},
+{planet:"Mars",polarity:"friction",strength:1.5,start:"2027-01-10",end:"2027-02-28",tag:"℞ L9",reasoning:"Mars (5th lord) retrograde in L9 Leo from Jan 10"},
+{planet:"Ketu",polarity:"friction",strength:2.5,start:"2027-01-14",end:"2027-02-28",tag:"Ketu PD, L5",reasoning:"Ketu PD from Jan 14 activates natal Ketu in L5 (SAV 24)"},
+{planet:"Jupiter",polarity:"friction",strength:2,start:"2027-01-25",end:"2027-02-28",tag:"℞ L8 Cancer",reasoning:"Jupiter retrograde back into L8 Cancer (SAV 22) on Jan 25"},
+{planet:"Venus",polarity:"support",strength:1.5,start:"2027-01-30",end:"2027-02-24",tag:"L1 Sagittarius",reasoning:"Venus in L1 Sagittarius (Jan 30 to Feb 24)"},
+{planet:"Mercury",polarity:"friction",strength:2,start:"2027-02-09",end:"2027-02-28",tag:"℞ L3",reasoning:"Mercury retrograde in L3 Aquarius from Feb 9 (messaging)"},
+{planet:"Mercury",polarity:"friction",strength:1.5,start:"2027-02-12",end:"2027-02-24",tag:"combust",reasoning:"Mercury combust again (Feb 12 to 24)"}]};
+const $=i=>document.getElementById(i),TH={p:2,f:-3};
+const pd=s=>{const[a,b,c]=s.split("-").map(Number);return new Date(a,b-1,c)};
+const OK=s=>/^\d{4}-\d{2}-\d{2}$/.test(s)&&!isNaN(pd(s));
+let E,P,RT,LK,N,V,START,FL,TITLE,key="",d=0,play=false,last=0;
+const di=s=>Math.round((pd(s)-START)/864e5);
+function validate(D){
+ if(!D||!D.window||!OK(D.window.start)||!OK(D.window.end))throw new Error("window.start and window.end must be YYYY-MM-DD");
+ if(!Array.isArray(D.factors)||!D.factors.length)throw new Error("factors list is empty");
+ D.factors.forEach((f,i)=>{const k="factor "+(i+1)+": ";if(!f.planet)throw new Error(k+"planet missing");
+  if(!["support","friction"].includes(f.polarity))throw new Error(k+"polarity must be support or friction");
+  if(!(Number(f.strength)>=1&&Number(f.strength)<=5))throw new Error(k+"strength must be 1 to 5");
+  if(!OK(f.start)||!OK(f.end))throw new Error(k+"start and end must be YYYY-MM-DD");
+  if(pd(f.end)<pd(f.start))throw new Error(k+"end is before start")});
+}
+function load(D){
+ START=pd(D.window.start);N=Math.max(1,di(D.window.end));FL=[];
+ E=D.factors.map(f=>{const a=di(f.start),b=di(f.end);if(a<0||b>N)FL.push(f.planet+" "+(f.tag||f.start)+": dates fall outside the window, clipped");
+  return[f.planet,(f.polarity==="support"?1:-1)*Number(f.strength),Math.max(0,a),Math.min(N,b),f.reasoning||"",f.tag||"",f.why_strength||"",f.strength]});
+ const names=(D.planets||[]).map(p=>p.name);E.forEach(e=>{if(!names.includes(e[0]))names.push(e[0])});P=names;
+ RT={};(D.retrograde||[]).forEach(r=>RT[r.planet]=[di(r.from),r.to?di(r.to):N+1]);
+ LK=(D.links||[]).map(l=>[l.from,l.to,di(l.from_date)]);FL=FL.concat(D.review_flags||[]);
+ TITLE=D.outcome_label||"Outcome";$("ti").textContent=D.title||"Graha influence timeline";$("su").textContent=D.dasha_line||"";
+ V=[];for(let i=0;i<=N;i++)V.push(net(i));$("sl").max=N;d=0;$("sl").value=0;key="";play=false;$("pl").textContent="Play";
+}
+const act=x=>E.filter(e=>x>=e[2]&&x<=e[3]),net=x=>act(x).reduce((a,e)=>a+e[1],0);
+const rt=(p,x)=>RT[p]&&x>=RT[p][0]&&x<=RT[p][1];
+const lv=n=>n>=TH.p?2:n<=TH.f?0:1,LB=["Leans away from the outcome: friction, withdrawal or ambiguity","Mixed signals, ambiguity","Leans toward the outcome: pull, renewed attention"],CL=["dn","","up"];
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n);
+function draw(t){
+ const pos=css("--pos"),neg=css("--neg"),neu=css("--neu"),ln=css("--ln"),fg=css("--fg");
+ const a=act(d),n=net(d),pulse=.55+.45*Math.sin(t/260),CX=300,CY=180,R=135;let s="";const pp={};
+ P.forEach((p,i)=>{let ang=-Math.PI/2+i*2*Math.PI/P.length;if(rt(p,d))ang-=.0035*(d-RT[p][0]);pp[p]=[CX+R*1.4*Math.cos(ang),CY+R*Math.sin(ang)]});
+ P.forEach(p=>{const ev=a.filter(e=>e[0]===p),w=ev.reduce((x,e)=>x+e[1],0),c=w>0?pos:w<0?neg:neu,[x,y]=pp[p];
+  s+=ev.length?`<line x1="${x}" y1="${y}" x2="${CX}" y2="${CY}" stroke="${c}" stroke-width="${1+Math.min(6,Math.abs(w))*1.4}" opacity="${pulse}" stroke-dasharray="${w<0?"6 5":"none"}"/>`:`<line x1="${x}" y1="${y}" x2="${CX}" y2="${CY}" stroke="${ln}"/>`});
+ LK.forEach(l=>{if(d>=l[2]&&pp[l[0]]&&pp[l[1]])s+=`<line x1="${pp[l[0]][0]}" y1="${pp[l[0]][1]}" x2="${pp[l[1]][0]}" y2="${pp[l[1]][1]}" stroke="${neg}" stroke-width="2" opacity="${pulse}"/>`});
+ const L=lv(n),sc=[neg,neu,pos][L];
+ s+=`<circle cx="${CX}" cy="${CY}" r="${34+Math.min(12,Math.abs(n))*2}" fill="${sc}" opacity=".18"/><circle cx="${CX}" cy="${CY}" r="30" fill="none" stroke="${sc}" stroke-width="3"/><text x="${CX}" y="${CY-2}" text-anchor="middle" font-size="11">${TITLE.slice(0,10)}</text><text x="${CX}" y="${CY+13}" text-anchor="middle" font-size="12" font-weight="600">${n>0?"+":""}${n.toFixed(1)}</text>`;
+ P.forEach(p=>{const ev=a.filter(e=>e[0]===p),w=ev.reduce((x,e)=>x+e[1],0),c=w>0?pos:w<0?neg:neu,[x,y]=pp[p],r=16+Math.min(6,Math.abs(w))*3.5;
+  const tag=[...new Set(ev.map(e=>e[5]).filter(Boolean))].join(" · ");
+  s+=`<circle cx="${x}" cy="${y}" r="${r}" fill="${c}" opacity=".25"/><circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="${c}" stroke-width="2.5"/><text x="${x}" y="${y+4}" text-anchor="middle" font-size="12" font-weight="600">${p}${rt(p,d)?" ℞":""}</text>`+(tag?`<text x="${x}" y="${y+r+13}" text-anchor="middle" font-size="10.5" style="fill:${c}">${tag}</text>`:"")});
+ $("map").innerHTML=s;
+ $("dt").textContent=new Date(START.getFullYear(),START.getMonth(),START.getDate()+Math.floor(d)).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+ $("st").textContent=LB[L];$("st").className=CL[L];
+ const k=a.map(e=>E.indexOf(e)).join();
+ if(k!==key){key=k;$("ev").innerHTML=FL.map(f=>`<li class="fl">⚑ ${f}</li>`).join("")+a.map(e=>`<li class="${e[1]>0?"up":"dn"}">${e[1]>0?"▲":"▼"} ${e[4]}${e[6]?`<small>strength ${e[7]}: ${e[6]}</small>`:""}</li>`).join("")}
+ const mn=Math.min(...V,-1),mx=Math.max(...V,1),Y=q=>4+(mx-q)/(mx-mn)*38;
+ $("sp").innerHTML=`<line x1="0" x2="600" y1="${Y(0)}" y2="${Y(0)}" stroke="${ln}" vector-effect="non-scaling-stroke"/><polyline fill="none" stroke="${fg}" stroke-width="2" vector-effect="non-scaling-stroke" points="${V.map((q,i)=>`${i/N*600},${Y(q)}`).join(" ")}"/><line x1="${d/N*600}" x2="${d/N*600}" y1="0" y2="46" stroke="${sc}" stroke-width="2.5" vector-effect="non-scaling-stroke"/>`;
+}
+function loop(t){if(play){d+=(t-last)/1000*4;if(d>=N){d=N;play=false;$("pl").textContent="Replay"}$("sl").value=d}last=t;draw(t);requestAnimationFrame(loop)}
+$("sl").oninput=()=>{d=+$("sl").value};
+$("pl").onclick=()=>{if(d>=N)d=0;play=!play;$("pl").textContent=play?"Pause":"Play"};
+$("ld").onclick=()=>{$("er").textContent="";$("ov").classList.add("on")};
+$("cx").onclick=()=>$("ov").classList.remove("on");
+$("ap").onclick=()=>{try{const D=JSON.parse($("ta").value.replace(/```json|```/g,"").trim());validate(D);load(D);$("ta").value="";$("ov").classList.remove("on")}catch(e){$("er").textContent="Could not read JSON: "+e.message}};
+load(SAMPLE);requestAnimationFrame(loop);
+</script></body></html>
