@@ -11,7 +11,6 @@ import {
   Send,
   Sparkles,
   Trash2,
-  X,
 } from 'lucide-react';
 import { AstroThread, LlmProvider } from '../types/astro';
 import {
@@ -20,6 +19,7 @@ import {
   monthDiffInclusive,
 } from '../data/sampleProfiles';
 import { getCardTheme } from '../data/cardThemes';
+import { AstroReasoningModal } from './AstroReasoningModal';
 
 interface OpenedCardSpreadProps {
   thread: AstroThread;
@@ -35,6 +35,9 @@ interface OpenedCardSpreadProps {
   isUpdatingFutureWindow: boolean;
   futureWindowError: string | null;
   onUpdateFutureWindow: (startMonth: string, endMonth: string) => Promise<boolean>;
+  isBuildingTimeline: boolean;
+  timelineBuildError: string | null;
+  onRetryTimelineBuild: (cardId?: string, sourceTab?: 'primary' | 'private') => void;
 }
 
 export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
@@ -51,6 +54,9 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
   isUpdatingFutureWindow,
   futureWindowError,
   onUpdateFutureWindow,
+  isBuildingTimeline,
+  timelineBuildError,
+  onRetryTimelineBuild,
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<'primary' | 'private'>('primary');
@@ -471,11 +477,30 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                     <div className="flex items-center justify-end">
                       <button
                         type="button"
+                        disabled={isBuildingTimeline}
                         onClick={() => setReasoningModalOpen(true)}
-                        className="px-4 py-2 rounded-xl border border-white/15 bg-white/[0.04] hover:bg-white/[0.08] text-xs font-medium text-[#D4A853] inline-flex items-center gap-2 transition-colors backdrop-blur-md"
+                        title={
+                          isBuildingTimeline
+                            ? 'Private LLM is building your timeline decision flow...'
+                            : 'Open Astrological Reasoning & Decision Timeline'
+                        }
+                        className={`px-4 py-2 rounded-xl border text-xs font-medium inline-flex items-center gap-2 transition-colors backdrop-blur-md ${
+                          isBuildingTimeline
+                            ? 'border-white/10 bg-white/[0.02] text-[#7D8496] opacity-55 cursor-not-allowed'
+                            : 'border-white/15 bg-white/[0.04] hover:bg-white/[0.08] text-[#D4A853]'
+                        }`}
                       >
-                        <BookOpen className="w-3.5 h-3.5" />
-                        <span>Astrological Reasoning — Why This Outlook</span>
+                        {isBuildingTimeline ? (
+                          <>
+                            <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Astrological Reasoning · Building Timeline...</span>
+                          </>
+                        ) : (
+                          <>
+                            <BookOpen className="w-3.5 h-3.5" />
+                            <span>Astrological Reasoning — Why This Outlook</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   )}
@@ -704,129 +729,21 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
         </form>
       </div>
 
-      {/* SEPARATE WINDOW: ASTROLOGICAL REASONING MODAL */}
-      {reasoningModalOpen && activeCard && activeTheme && ActiveDomainIcon && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
-          onClick={() => setReasoningModalOpen(false)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl border border-white/15 bg-[#161922] shadow-2xl overflow-hidden"
-          >
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-[#12151C]">
-              <div className="flex items-center gap-2.5">
-                <BookOpen className="w-4 h-4 text-[#D4A853]" />
-                <div>
-                  <h3 className="text-sm font-semibold text-[#EDEFF5]">
-                    Astrological Reasoning ·{' '}
-                    {activeTab === 'private' ? 'Private LLM' : primaryTabLabel}
-                  </h3>
-                  <p className="text-[11px] text-[#8E95A5]">
-                    Detailed Jyotish basis behind the real-world outlook
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setReasoningModalOpen(false)}
-                className="p-1.5 rounded-lg text-[#8E95A5] hover:text-white hover:bg-white/5 transition-colors"
-                aria-label="Close astrological reasoning window"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Domain Card Selector Tabs Inside Modal (when multiple cards exist) */}
-            {thread.cards.length > 1 && (
-              <div className="px-6 py-2.5 border-b border-white/10 bg-[#141720] flex flex-wrap gap-2">
-                {thread.cards.map((card, idx) => {
-                  const t = getCardTheme(card.domain);
-                  const TabIcon = t.icon;
-                  const isCurrent = idx === selectedIndex;
-                  return (
-                    <button
-                      key={card.id}
-                      type="button"
-                      onClick={() => setSelectedIndex(idx)}
-                      className={`px-3 py-1.5 rounded-lg border text-xs font-medium inline-flex items-center gap-1.5 transition-colors ${
-                        isCurrent
-                          ? t.selectorActiveClass
-                          : 'border-white/10 bg-white/[0.02] text-[#8E95A5] hover:text-[#EDEFF5]'
-                      }`}
-                    >
-                      <TabIcon className="w-3.5 h-3.5" />
-                      <span>
-                        {t.label}: {card.title}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Modal Body */}
-            <div className="p-6 overflow-y-auto space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${activeTheme.badgeClass}`}
-                >
-                  <ActiveDomainIcon className="w-3.5 h-3.5" />
-                  <span>
-                    {activeTheme.label} · {activeCard.title}
-                  </span>
-                </span>
-                {activeReading?.timingWindow && (
-                  <span className="text-[11px] font-medium tabular-nums text-[#D4A853]">
-                    Peak Window: {activeReading.timingWindow}
-                  </span>
-                )}
-              </div>
-
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-1.5">
-                <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[#8E95A5]">
-                  Question Evaluated
-                </h4>
-                <p className="text-xs font-medium leading-relaxed text-[#EDEFF5]">
-                  {activeCard.question}
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-[#D4A853]/30 bg-[#D4A853]/[0.06] p-4 space-y-2">
-                <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[#D4A853]">
-                  Why the Engine Concluded This
-                </h4>
-                <p className="text-xs leading-relaxed text-[#E6E9F0] whitespace-pre-wrap">
-                  {activeReading?.planetaryTriggers ||
-                    'No detailed astrological triggers returned for this card.'}
-                </p>
-              </div>
-
-              {activeReading?.verdictSummary && (
-                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-1.5">
-                  <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[#8E95A5]">
-                    Corresponding Real-World Outlook
-                  </h4>
-                  <p className="text-xs leading-relaxed text-[#B9C0D0]">
-                    {activeReading.verdictSummary}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-3 border-t border-white/10 bg-[#12151C] flex justify-end">
-              <button
-                type="button"
-                onClick={() => setReasoningModalOpen(false)}
-                className="px-4 py-1.5 rounded-lg bg-[#D4A853] hover:bg-[#DFB96B] text-[#111318] text-xs font-semibold transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* SEPARATE WINDOW: ASTROLOGICAL REASONING & TIMELINE DECISION ENGINE */}
+      {activeCard && activeTheme && activeReading && (
+        <AstroReasoningModal
+          isOpen={reasoningModalOpen}
+          onClose={() => setReasoningModalOpen(false)}
+          card={activeCard}
+          reading={activeReading}
+          theme={activeTheme}
+          engineLabel={activeTab === 'private' ? 'Private LLM' : primaryTabLabel}
+          pastLabel={pastLabel}
+          futureLabel={futureLabel}
+          isBuildingTimeline={isBuildingTimeline}
+          timelineError={timelineBuildError}
+          onRetryTimeline={() => onRetryTimelineBuild(activeCard.id, activeTab)}
+        />
       )}
     </div>
   );

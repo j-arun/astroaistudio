@@ -122,6 +122,8 @@ export default function App() {
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [buildingTimelineThreadId, setBuildingTimelineThreadId] = useState<string | null>(null);
+  const [timelineBuildError, setTimelineBuildError] = useState<string | null>(null);
   const [isPostingToPrivateLlm, setIsPostingToPrivateLlm] = useState(false);
   const [privateLlmError, setPrivateLlmError] = useState<string | null>(null);
   const [isUpdatingFollowUpWindow, setIsUpdatingFollowUpWindow] = useState(false);
@@ -367,6 +369,7 @@ export default function App() {
     setFutureSet(false);
     setTimelineError(null);
     setAnalyzeError(null);
+    setTimelineBuildError(null);
     setPrivateLlmError(null);
     setFollowUpWindowError(null);
     setChatError(null);
@@ -419,6 +422,7 @@ export default function App() {
     setPastSet(true);
     setFutureSet(true);
     setAnalyzeError(null);
+    setTimelineBuildError(null);
     setPrivateLlmError(null);
     setFollowUpWindowError(null);
     setChatError(null);
@@ -599,9 +603,18 @@ export default function App() {
         }
       }
 
-      const enrichedCards: MagicCard[] = activeThread.cards.map((c) => ({
+      const enrichedCards: MagicCard[] = activeThread.cards.map((c, idx) => ({
         ...c,
-        reading: readingsMap.get(c.id),
+        reading:
+          readingsMap.get(c.id) ||
+          (idx === 0 && Array.isArray(data.cardReadings) && data.cardReadings[0]
+            ? {
+                verdictSummary: data.cardReadings[0].verdictSummary,
+                planetaryTriggers: data.cardReadings[0].planetaryTriggers,
+                timingWindow: data.cardReadings[0].timingWindow,
+                guidance: data.cardReadings[0].guidance,
+              }
+            : undefined),
       }));
 
       const autoTitle = `${formatMonthRangeLabel(
@@ -629,12 +642,132 @@ export default function App() {
       setActiveThread(completedThread);
       const withoutDup = savedThreads.filter((t) => t.id !== completedThread.id);
       persistThreads([completedThread, ...withoutDup]);
+
+      if (completedThread.cards[0]?.reading?.planetaryTriggers) {
+        void runPrivateTimelineDecision(
+          completedThread,
+          completedThread.cards[0].id,
+          'primary'
+        );
+      }
     } catch (err: unknown) {
       setAnalyzeError(
         err instanceof Error ? err.message : 'Unable to unfold readings. Please try again.'
       );
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  // Secondary decoupled call: feed ONLY the public LLM's reasoning narrative to Private LLM (Ollama)
+  // to construct a timeline-based decision engine without touching the public prediction prompt.
+  const runPrivateTimelineDecision = async (
+    targetThread: AstroThread,
+    targetCardId?: string,
+    sourceTab: 'primary' | 'private' = 'primary'
+  ) => {
+    const targetCard =
+      targetThread.cards.find((c) => c.id === targetCardId) || targetThread.cards[0];
+    const sourceReading =
+      sourceTab === 'private' ? targetCard?.privateReading : targetCard?.reading;
+    if (!targetCard || !sourceReading?.planetaryTriggers) {
+      return;
+    }
+
+    setBuildingTimelineThreadId(targetThread.id);
+    setTimelineBuildError(null);
+
+    try {
+      const res = await fetch('/api/astro/timeline-decision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          domain: targetCard.domain,
+          title: targetCard.title,
+          eventDate: targetCard.eventDate,
+          question: targetCard.question,
+          pastRangeLabel: formatMonthRangeLabel(
+            targetThread.narrativeWindow.startMonth,
+            targetThread.narrativeWindow.endMonth
+          ),
+          futureRangeLabel: formatMonthRangeLabel(
+            targetThread.futureWindow.startMonth,
+            targetThread.futureWindow.endMonth
+          ),
+          verdictSummary: sourceReading.verdictSummary,
+          timingWindow: sourceReading.timingWindow,
+          planetaryTriggers: sourceReading.planetaryTriggers,
+          llmConfig: {
+            ollamaBaseUrl: apiConfig.ollamaBaseUrl,
+            ollamaModel: apiConfig.ollamaModel,
+          },
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(
+          data.error || 'Private LLM failed to generate timeline decision flow.'
+        );
+      }
+
+      const timelineFlow = data.timelineFlow;
+      if (!timelineFlow) {
+        throw new Error('Private LLM returned an empty timeline decision flow.');
+      }
+
+      const attachFlow = (thread: AstroThread): AstroThread => ({
+        ...thread,
+        cards: thread.cards.map((c) => {
+          if (c.id !== targetCard.id) return c;
+          if (sourceTab === 'private' && c.privateReading) {
+            return {
+              ...c,
+              privateReading: {
+                ...c.privateReading,
+                timelineFlow,
+              },
+            };
+          }
+          if (c.reading) {
+            return {
+              ...c,
+              reading: {
+                ...c.reading,
+                timelineFlow,
+              },
+            };
+          }
+          return c;
+        }),
+      });
+
+      setActiveThread((prev) => (prev.id === targetThread.id ? attachFlow(prev) : prev));
+      setSavedThreads((prevThreads) => {
+        const exists = prevThreads.some((t) => t.id === targetThread.id);
+        const nextThreads = exists
+          ? prevThreads.map((t) => (t.id === targetThread.id ? attachFlow(t) : t))
+          : [attachFlow(targetThread), ...prevThreads];
+        try {
+          localStorage.setItem(STORAGE_THREADS_KEY, JSON.stringify(nextThreads));
+          void fetch('/api/threads', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ threads: nextThreads }),
+          });
+        } catch {
+          // local state updated
+        }
+        return nextThreads;
+      });
+    } catch (err: unknown) {
+      setTimelineBuildError(
+        err instanceof Error
+          ? err.message
+          : 'Unable to reach Private LLM for timeline decision engine.'
+      );
+    } finally {
+      setBuildingTimelineThreadId((prev) => (prev === targetThread.id ? null : prev));
     }
   };
 
@@ -1631,6 +1764,11 @@ export default function App() {
                 isUpdatingFutureWindow={isUpdatingFollowUpWindow}
                 futureWindowError={followUpWindowError}
                 onUpdateFutureWindow={handleUpdateFollowUpFutureWindow}
+                isBuildingTimeline={buildingTimelineThreadId === activeThread.id}
+                timelineBuildError={timelineBuildError}
+                onRetryTimelineBuild={(cardId, sourceTab) =>
+                  runPrivateTimelineDecision(activeThread, cardId, sourceTab)
+                }
               />
             )}
           </div>

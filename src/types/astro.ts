@@ -56,11 +56,47 @@ export interface AstroProfile {
   updatedAt: string;
 }
 
+export interface TimelineStage {
+  phase: string;
+  dateRange: string;
+  stateLabel: string;
+  direction: 'pullback' | 'shift' | 'flow';
+  flowScore: number; // 0..100 (0-44 Pulled Back, 45-59 Shift, 60-100 Flow)
+  trigger: string;
+  explanation: string;
+}
+
+export interface TimelineFactor {
+  name: string;
+  role: string;
+  impact: string;
+}
+
+export interface TimelineTransitionEdge {
+  from: string;
+  relation: string;
+  to: string;
+  effect: string;
+}
+
+export interface TimelineDecisionFlow {
+  generatedByModel?: string;
+  keyHolder: {
+    name: string;
+    role: string;
+    why: string;
+  };
+  factors: TimelineFactor[];
+  stages: TimelineStage[];
+  edges: TimelineTransitionEdge[];
+}
+
 export interface CardReading {
   verdictSummary: string;
   planetaryTriggers: string;
   timingWindow: string;
   guidance: string;
+  timelineFlow?: TimelineDecisionFlow;
 }
 
 export interface MagicCard {

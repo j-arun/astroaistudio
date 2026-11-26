@@ -6,6 +6,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import { buildAnalyzePromptParts } from './src/data/promptBuilder.ts';
+import { buildTimelineDecisionPrompt } from './src/data/timelinePromptBuilder.ts';
 
 dotenv.config();
 
@@ -634,6 +635,135 @@ async function startServer() {
     } catch (err: unknown) {
       console.error('Analyze error:', err);
       const message = err instanceof Error ? err.message : 'Failed to generate astrological reading.';
+      res.status(502).json({ error: message });
+    }
+  });
+
+  // Secondary Timeline Decision Engine (Private LLM / Ollama only, fed Public LLM reasoning text)
+  app.post('/api/astro/timeline-decision', async (req, res) => {
+    const {
+      domain,
+      title,
+      eventDate,
+      question,
+      pastRangeLabel,
+      futureRangeLabel,
+      verdictSummary,
+      timingWindow,
+      planetaryTriggers,
+      llmConfig,
+    } = req.body || {};
+
+    if (!planetaryTriggers || typeof planetaryTriggers !== 'string') {
+      res.status(400).json({ error: 'Missing public reasoning narrative for timeline engine.' });
+      return;
+    }
+
+    const storedCfg = readJsonFile<Partial<PersistedConfig>>(API_CONFIG_FILE, {});
+    const activeCfg: PersistedConfig = {
+      ...DEFAULT_CONFIG,
+      ...storedCfg,
+      ...(llmConfig || {}),
+    };
+
+    const { systemInstruction, userPrompt } = buildTimelineDecisionPrompt({
+      domain: domain || 'General',
+      title: title || 'Event',
+      eventDate: eventDate || '',
+      question: question || '',
+      pastRangeLabel: pastRangeLabel || 'Past Period',
+      futureRangeLabel: futureRangeLabel || 'Future Period',
+      verdictSummary: verdictSummary || '',
+      timingWindow: timingWindow || '',
+      planetaryTriggers,
+    });
+
+    try {
+      const rawOllama = await callOllamaAdapter(
+        activeCfg,
+        [
+          { role: 'system', content: systemInstruction },
+          { role: 'user', content: userPrompt },
+        ],
+        true
+      );
+      const parsed = parseLooseJson(rawOllama);
+
+      const rawStages = Array.isArray(parsed.stages) ? parsed.stages : [];
+      const stages = rawStages.map((s: Record<string, unknown>, idx: number) => {
+        const score = Number(s?.flowScore);
+        const clampedScore = Number.isFinite(score)
+          ? Math.min(95, Math.max(8, score))
+          : idx === 0
+          ? 34
+          : idx === 1
+          ? 48
+          : idx === 2
+          ? 64
+          : 78;
+        const dir =
+          s?.direction === 'pullback' || s?.direction === 'shift' || s?.direction === 'flow'
+            ? s.direction
+            : clampedScore < 45
+            ? 'pullback'
+            : clampedScore < 60
+            ? 'shift'
+            : 'flow';
+
+        return {
+          phase: typeof s?.phase === 'string' ? s.phase : `Stage ${idx + 1}`,
+          dateRange: typeof s?.dateRange === 'string' ? s.dateRange : '',
+          stateLabel: typeof s?.stateLabel === 'string' ? s.stateLabel : 'Transition',
+          direction: dir,
+          flowScore: clampedScore,
+          trigger: typeof s?.trigger === 'string' ? s.trigger : 'Transit Shift',
+          explanation: typeof s?.explanation === 'string' ? s.explanation : '',
+        };
+      });
+
+      const rawKeyHolder =
+        parsed.keyHolder && typeof parsed.keyHolder === 'object'
+          ? (parsed.keyHolder as Record<string, unknown>)
+          : {};
+
+      const timelineFlow = {
+        generatedByModel: activeCfg.ollamaModel || 'ollama',
+        keyHolder: {
+          name:
+            typeof rawKeyHolder.name === 'string' && rawKeyHolder.name.trim()
+              ? rawKeyHolder.name
+              : 'Primary Chart Factor',
+          role:
+            typeof rawKeyHolder.role === 'string' && rawKeyHolder.role.trim()
+              ? rawKeyHolder.role
+              : 'Primary Decision Lever',
+          why: typeof rawKeyHolder.why === 'string' ? rawKeyHolder.why : '',
+        },
+        factors: Array.isArray(parsed.factors)
+          ? (parsed.factors as Array<Record<string, unknown>>).map((f) => ({
+              name: typeof f?.name === 'string' ? f.name : 'Factor',
+              role: typeof f?.role === 'string' ? f.role : 'Anchor',
+              impact: typeof f?.impact === 'string' ? f.impact : '',
+            }))
+          : [],
+        stages,
+        edges: Array.isArray(parsed.edges)
+          ? (parsed.edges as Array<Record<string, unknown>>).map((e) => ({
+              from: typeof e?.from === 'string' ? e.from : 'Trigger',
+              relation: typeof e?.relation === 'string' ? e.relation : 'influences',
+              to: typeof e?.to === 'string' ? e.to : 'Outcome',
+              effect: typeof e?.effect === 'string' ? e.effect : '',
+            }))
+          : [],
+      };
+
+      res.json({ timelineFlow });
+    } catch (err: unknown) {
+      console.error('Timeline decision error:', err);
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Private LLM (Ollama) failed to generate timeline decision flow.';
       res.status(502).json({ error: message });
     }
   });
