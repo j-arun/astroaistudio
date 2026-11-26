@@ -7,9 +7,10 @@ import {
   CalendarClock,
   Cpu,
   Layers,
-  Lock,
+  RotateCw,
   Send,
   Sparkles,
+  Trash2,
   X,
 } from 'lucide-react';
 import { AstroThread, LlmProvider } from '../types/astro';
@@ -25,9 +26,12 @@ interface OpenedCardSpreadProps {
   isSendingChat: boolean;
   chatError: string | null;
   onSendChat: (message: string, targetProvider?: LlmProvider) => void;
+  onRetryChat: () => void;
+  canRetryChat: boolean;
   isPostingToPrivateLlm: boolean;
   privateLlmError: string | null;
   onPostToPrivateLlm: () => void;
+  onDeletePrivateReading: () => void;
   isUpdatingFutureWindow: boolean;
   futureWindowError: string | null;
   onUpdateFutureWindow: (startMonth: string, endMonth: string) => Promise<boolean>;
@@ -38,9 +42,12 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
   isSendingChat,
   chatError,
   onSendChat,
+  onRetryChat,
+  canRetryChat,
   isPostingToPrivateLlm,
   privateLlmError,
   onPostToPrivateLlm,
+  onDeletePrivateReading,
   isUpdatingFutureWindow,
   futureWindowError,
   onUpdateFutureWindow,
@@ -114,6 +121,11 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
     onPostToPrivateLlm();
   };
 
+  const handleDeletePrivate = () => {
+    setActiveTab('primary');
+    onDeletePrivateReading();
+  };
+
   const handleApplyFutureTimeline = async () => {
     if (!isDraftFutureValid || isUpdatingFutureWindow) return;
     const ok = await onUpdateFutureWindow(draftFutureStart, draftFutureEnd);
@@ -131,6 +143,10 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
     onSendChat(trimmed, targetProvider);
     setDraftMessage('');
   };
+
+  const lastUserMsgId = [...thread.messages]
+    .reverse()
+    .find((m) => m.role === 'user')?.id;
 
   return (
     <div className="space-y-6 pb-6">
@@ -150,20 +166,40 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
               {primaryTabLabel}
             </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('private')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors inline-flex items-center gap-1.5 ${
-                activeTab === 'private'
-                  ? 'bg-[#D4A853]/15 border-[#D4A853]/60 text-[#D4A853]'
-                  : 'bg-white/[0.02] border-white/10 text-[#8E95A5] hover:text-[#EDEFF5] hover:bg-white/[0.05]'
-              }`}
-            >
-              <Cpu className="w-3.5 h-3.5" />
-              <span>
-                Private LLM{thread.privateModel ? ` · ${thread.privateModel}` : ''}
-              </span>
-            </button>
+            <div className="inline-flex items-center">
+              <button
+                type="button"
+                onClick={() => setActiveTab('private')}
+                className={`px-3.5 py-1.5 text-xs font-semibold border transition-colors inline-flex items-center gap-1.5 ${
+                  hasPrivateResult && !isPostingToPrivateLlm ? 'rounded-l-lg border-r-0' : 'rounded-lg'
+                } ${
+                  activeTab === 'private'
+                    ? 'bg-[#D4A853]/15 border-[#D4A853]/60 text-[#D4A853]'
+                    : 'bg-white/[0.02] border-white/10 text-[#8E95A5] hover:text-[#EDEFF5] hover:bg-white/[0.05]'
+                }`}
+              >
+                <Cpu className="w-3.5 h-3.5" />
+                <span>
+                  Private LLM{thread.privateModel ? ` · ${thread.privateModel}` : ''}
+                </span>
+              </button>
+
+              {hasPrivateResult && !isPostingToPrivateLlm && (
+                <button
+                  type="button"
+                  onClick={handleDeletePrivate}
+                  title="Delete Private LLM response"
+                  aria-label="Delete Private LLM response"
+                  className={`px-2 py-1.5 rounded-r-lg border transition-colors inline-flex items-center ${
+                    activeTab === 'private'
+                      ? 'bg-[#D4A853]/15 border-[#D4A853]/60 text-[#D4A853]/80 hover:text-red-300 hover:bg-red-950/30'
+                      : 'bg-white/[0.02] border-white/10 text-[#6C7384] hover:text-red-300 hover:bg-red-950/30'
+                  }`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           </div>
 
           <span className="text-[11px] font-mono text-[#6C7384] hidden sm:inline">
@@ -358,6 +394,19 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                               </div>
                             </div>
                           )}
+
+                          {/* Delete option at top of Private LLM card response */}
+                          {activeTab === 'private' && hasPrivateResult && !isPostingToPrivateLlm && (
+                            <button
+                              type="button"
+                              onClick={handleDeletePrivate}
+                              title="Delete Private LLM response"
+                              aria-label="Delete Private LLM response"
+                              className="p-1.5 rounded-lg border border-white/15 bg-white/[0.05] hover:bg-red-950/40 hover:border-red-900/60 text-white/70 hover:text-red-300 transition-colors flex items-center justify-center"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
 
@@ -439,41 +488,25 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
 
       {/* Flowing Thread Follow-Up Conversation */}
       <div className="rounded-2xl border border-white/10 bg-white/[0.025] backdrop-blur-xl p-5 space-y-4">
-        <div className="border-b border-white/10 pb-3 flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-0.5">
-            <h3 className="text-sm font-semibold text-[#EDEFF5]">Follow-Up Questions</h3>
-            <p className="text-xs text-[#8E95A5]">
-              Past narrative ({pastLabel}) stays locked; you can adjust the Future Target timeline below for follow-ups.
-            </p>
-          </div>
+        <div className="border-b border-white/10 pb-3 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-[#EDEFF5]">Follow-Up Questions</h3>
 
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-white/10 bg-white/[0.03] text-[11px] text-[#8E95A5]">
-              <Lock className="w-3 h-3 text-[#6C7384]" />
-              <span>Past: {pastLabel}</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => setIsEditingFuture((v) => !v)}
-              className="px-2.5 py-1 rounded-lg border border-[#D4A853]/35 bg-[#D4A853]/10 hover:bg-[#D4A853]/20 text-[11px] font-medium text-[#D4A853] inline-flex items-center gap-1.5 transition-colors"
-            >
-              <CalendarClock className="w-3.5 h-3.5" />
-              <span>Future: {futureLabel} · Change</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setIsEditingFuture((v) => !v)}
+            className="px-2.5 py-1 rounded-lg border border-[#D4A853]/35 bg-[#D4A853]/10 hover:bg-[#D4A853]/20 text-[11px] font-medium text-[#D4A853] inline-flex items-center gap-1.5 transition-colors"
+          >
+            <CalendarClock className="w-3.5 h-3.5" />
+            <span>Future: {futureLabel} · Change</span>
+          </button>
         </div>
 
-        {/* Editable Future Target Timeline (Past Narrative locked) */}
+        {/* Editable Future Target Timeline */}
         {isEditingFuture && (
           <div className="rounded-xl border border-[#262A34] bg-[#14171E] p-4 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold text-[#EDEFF5]">
-                Update Future Target Timeline (1–3 Months)
-              </span>
-              <span className="text-[11px] text-[#8E95A5]">
-                Past Narrative timeline cannot be changed
-              </span>
-            </div>
+            <span className="block text-xs font-semibold text-[#EDEFF5]">
+              Update Future Target Timeline (1–3 Months)
+            </span>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -564,6 +597,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                   : msg.provider === 'gemini'
                   ? 'Gemini'
                   : 'Outlook Assistant';
+              const isLastUserMsg = msg.role === 'user' && msg.id === lastUserMsgId;
 
               return (
                 <div
@@ -577,23 +611,36 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                         : 'bg-[#111318] text-[#D8DCE6] border border-[#262A34]'
                     }`}
                   >
-                    <div className="flex items-center gap-2 text-[11px] text-[#8E95A5] mb-1">
-                      <span
-                        className={
-                          msg.role === 'assistant'
-                            ? 'text-[#D4A853] font-semibold'
-                            : 'font-semibold'
-                        }
-                      >
-                        {msg.role === 'user' ? 'You' : msgProviderLabel}
-                      </span>
-                      <span>·</span>
-                      <span className="tabular-nums">
-                        {new Date(msg.timestamp).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
+                    <div className="flex items-center justify-between gap-3 text-[11px] text-[#8E95A5] mb-1">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={
+                            msg.role === 'assistant'
+                              ? 'text-[#D4A853] font-semibold'
+                              : 'font-semibold'
+                          }
+                        >
+                          {msg.role === 'user' ? 'You' : msgProviderLabel}
+                        </span>
+                        <span>·</span>
+                        <span className="tabular-nums">
+                          {new Date(msg.timestamp).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                      {isLastUserMsg && canRetryChat && !isSendingChat && (
+                        <button
+                          type="button"
+                          onClick={onRetryChat}
+                          title="Retry this follow-up question with full prompt"
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-[#D4A853] hover:text-[#F0C878] transition-colors"
+                        >
+                          <RotateCw className="w-3 h-3" />
+                          <span>Retry</span>
+                        </button>
+                      )}
                     </div>
                     <div className="whitespace-pre-wrap">{msg.content}</div>
                   </div>
@@ -611,8 +658,17 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
           )}
 
           {chatError && (
-            <div className="bg-red-950/30 border border-red-900/50 rounded-lg px-3.5 py-2.5 text-xs text-red-300">
-              {chatError}
+            <div className="bg-red-950/30 border border-red-900/50 rounded-lg px-3.5 py-2.5 text-xs text-red-300 flex flex-wrap items-center justify-between gap-3">
+              <span className="flex-1 min-w-0">{chatError}</span>
+              <button
+                type="button"
+                disabled={isSendingChat}
+                onClick={onRetryChat}
+                className="px-3 py-1.5 rounded-md bg-[#D4A853] hover:bg-[#DFB96B] disabled:opacity-40 text-[#111318] text-xs font-semibold inline-flex items-center gap-1.5 shrink-0 transition-colors"
+              >
+                <RotateCw className="w-3.5 h-3.5" />
+                <span>Retry</span>
+              </button>
             </div>
           )}
         </div>

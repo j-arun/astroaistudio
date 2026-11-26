@@ -128,6 +128,11 @@ export default function App() {
   const [followUpWindowError, setFollowUpWindowError] = useState<string | null>(null);
   const [isSendingChat, setIsSendingChat] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [failedChatRequest, setFailedChatRequest] = useState<{
+    userMessage: string;
+    targetProvider: LlmProvider;
+    userMsgId: string;
+  } | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [showFullPromptPreview, setShowFullPromptPreview] = useState(false);
 
@@ -365,6 +370,7 @@ export default function App() {
     setPrivateLlmError(null);
     setFollowUpWindowError(null);
     setChatError(null);
+    setFailedChatRequest(null);
   };
 
   const handleSelectProfile = (profile: AstroProfile) => {
@@ -416,6 +422,7 @@ export default function App() {
     setPrivateLlmError(null);
     setFollowUpWindowError(null);
     setChatError(null);
+    setFailedChatRequest(null);
   };
 
   const handleDeleteThread = (e: React.MouseEvent, id: string) => {
@@ -794,27 +801,37 @@ export default function App() {
     return true;
   };
 
-  // Persistent 3-Fold Thread Follow-Up Chat
-  const handleSendChat = async (userMessage: string, targetProvider?: LlmProvider) => {
+  // Delete the Private LLM response from this thread (keeping the Gemini/primary reading intact)
+  const handleDeletePrivateReading = () => {
+    const cleanedCards: MagicCard[] = activeThread.cards.map((c) => {
+      const { privateReading: _removed, ...rest } = c;
+      return rest;
+    });
+
+    const updatedThread: AstroThread = {
+      ...activeThread,
+      cards: cleanedCards,
+      privateOverallSynthesis: undefined,
+      privateModel: undefined,
+    };
+
+    setPrivateLlmError(null);
+    setActiveThread(updatedThread);
+    const nextSaved = savedThreads.map((t) => (t.id === updatedThread.id ? updatedThread : t));
+    persistThreads(nextSaved);
+  };
+
+  // Persistent 3-Fold Thread Follow-Up Chat (supports both fresh send and retry with full prompt)
+  const executeFollowUpChat = async (
+    userMessage: string,
+    effectiveProvider: LlmProvider,
+    historyForPrompt: ThreadMessage[],
+    displayMessages: ThreadMessage[],
+    userMsgId: string
+  ) => {
     if (!activeProfile) return;
     setChatError(null);
-    const effectiveProvider: LlmProvider =
-      targetProvider || activeThread.primaryProvider || apiConfig.llmProvider;
-
-    const userMsg: ThreadMessage = {
-      id: `msg-${Date.now()}-u`,
-      role: 'user',
-      content: userMessage,
-      provider: effectiveProvider,
-      timestamp: new Date().toISOString(),
-    };
-
-    const updatedHistory = [...activeThread.messages, userMsg];
-    const optimisticThread: AstroThread = {
-      ...activeThread,
-      messages: updatedHistory,
-    };
-    setActiveThread(optimisticThread);
+    setFailedChatRequest(null);
     setIsSendingChat(true);
 
     try {
@@ -827,7 +844,7 @@ export default function App() {
           narrativeWindow: activeThread.narrativeWindow,
           cards: activeThread.cards,
           futureWindow: activeThread.futureWindow,
-          history: activeThread.messages,
+          history: historyForPrompt,
           userMessage,
           llmConfig: {
             llmProvider: effectiveProvider,
@@ -855,8 +872,8 @@ export default function App() {
       };
 
       const finalThread: AstroThread = {
-        ...optimisticThread,
-        messages: [...updatedHistory, aiMsg],
+        ...activeThread,
+        messages: [...displayMessages, aiMsg],
       };
 
       setActiveThread(finalThread);
@@ -867,9 +884,89 @@ export default function App() {
       persistThreads(nextSaved);
     } catch (err: unknown) {
       setChatError(err instanceof Error ? err.message : 'Unable to send follow-up message.');
+      setFailedChatRequest({
+        userMessage,
+        targetProvider: effectiveProvider,
+        userMsgId,
+      });
     } finally {
       setIsSendingChat(false);
     }
+  };
+
+  const handleSendChat = async (userMessage: string, targetProvider?: LlmProvider) => {
+    if (!activeProfile) return;
+    const effectiveProvider: LlmProvider =
+      targetProvider || activeThread.primaryProvider || apiConfig.llmProvider;
+
+    const userMsg: ThreadMessage = {
+      id: `msg-${Date.now()}-u`,
+      role: 'user',
+      content: userMessage,
+      provider: effectiveProvider,
+      timestamp: new Date().toISOString(),
+    };
+
+    const baseHistory = failedChatRequest
+      ? activeThread.messages.filter((m) => m.id !== failedChatRequest.userMsgId)
+      : activeThread.messages;
+    const displayMessages = [...baseHistory, userMsg];
+
+    setActiveThread((prev) => ({
+      ...prev,
+      messages: displayMessages,
+    }));
+
+    await executeFollowUpChat(
+      userMessage,
+      effectiveProvider,
+      baseHistory,
+      displayMessages,
+      userMsg.id
+    );
+  };
+
+  const handleRetryChat = async () => {
+    if (!activeProfile || isSendingChat) return;
+
+    if (failedChatRequest) {
+      const historyBeforeFailed = activeThread.messages.filter(
+        (m) => m.id !== failedChatRequest.userMsgId
+      );
+      await executeFollowUpChat(
+        failedChatRequest.userMessage,
+        failedChatRequest.targetProvider,
+        historyBeforeFailed,
+        activeThread.messages,
+        failedChatRequest.userMsgId
+      );
+      return;
+    }
+
+    // Fallback: if retrying last user message in thread
+    const lastUserIdx = [...activeThread.messages]
+      .reverse()
+      .findIndex((m) => m.role === 'user');
+    if (lastUserIdx === -1) return;
+    const actualIdx = activeThread.messages.length - 1 - lastUserIdx;
+    const lastUserMsg = activeThread.messages[actualIdx];
+    const historyBefore = activeThread.messages.slice(0, actualIdx);
+    const displayMessages = activeThread.messages.slice(0, actualIdx + 1);
+    const effectiveProvider: LlmProvider =
+      lastUserMsg.provider || activeThread.primaryProvider || apiConfig.llmProvider;
+
+    setActiveThread((prev) => ({
+      ...prev,
+      messages: displayMessages,
+    }));
+
+    await executeFollowUpChat(
+      lastUserMsg.content,
+      effectiveProvider,
+      historyBefore,
+      displayMessages,
+      lastUserMsg.id
+    );
   };
 
   return (
@@ -1110,7 +1207,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={(e) => handleDeleteThread(e, t.id)}
-                      className="opacity-0 group-hover:opacity-100 text-[#6C7384] hover:text-red-400 transition-opacity shrink-0"
+                      className="opacity-40 group-hover:opacity-100 text-[#6C7384] hover:text-red-400 transition-opacity shrink-0"
                       title="Delete thread"
                     >
                       <Trash2 className="w-3 h-3" />
@@ -1164,7 +1261,7 @@ export default function App() {
       {/* MAIN WORKSPACE */}
       <main className="flex-1 min-w-0 flex flex-col bg-[#111318]">
         {/* Minimal Clean Top Bar */}
-        <header className="h-12 shrink-0 border-b border-[#262A34] px-6 flex items-center justify-between bg-[#14171D]">
+        <header className="h-12 shrink-0 border-b border-[#262A34] px-6 flex items-center justify-between gap-3 bg-[#14171D]">
           <span className="text-xs font-medium text-[#EDEFF5] truncate">
             {activeProfile
               ? activeThread.step === 'reading'
@@ -1172,6 +1269,17 @@ export default function App() {
                 : `${activeProfile.name} (${activeProfile.personId})`
               : 'Profile Setup Required'}
           </span>
+          {activeProfile && activeThread.step === 'reading' && (
+            <button
+              type="button"
+              onClick={(e) => handleDeleteThread(e, activeThread.id)}
+              title="Delete thread"
+              className="px-2.5 py-1 rounded-md border border-[#262A34] bg-[#181B22] hover:border-red-900/60 hover:bg-red-950/30 text-[11px] text-[#8E95A5] hover:text-red-300 inline-flex items-center gap-1.5 transition-colors shrink-0"
+            >
+              <Trash2 className="w-3 h-3" />
+              <span>Delete Thread</span>
+            </button>
+          )}
         </header>
 
         {/* Scrollable Content */}
@@ -1511,9 +1619,15 @@ export default function App() {
                 isSendingChat={isSendingChat}
                 chatError={chatError}
                 onSendChat={handleSendChat}
+                onRetryChat={handleRetryChat}
+                canRetryChat={
+                  Boolean(failedChatRequest) ||
+                  activeThread.messages.some((m) => m.role === 'user')
+                }
                 isPostingToPrivateLlm={isPostingToPrivateLlm}
                 privateLlmError={privateLlmError}
                 onPostToPrivateLlm={handlePostToPrivateLlm}
+                onDeletePrivateReading={handleDeletePrivateReading}
                 isUpdatingFutureWindow={isUpdatingFollowUpWindow}
                 futureWindowError={followUpWindowError}
                 onUpdateFutureWindow={handleUpdateFollowUpFutureWindow}
