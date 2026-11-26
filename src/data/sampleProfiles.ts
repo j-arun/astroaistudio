@@ -128,6 +128,7 @@ Saturn BAV  : Aries (4), Pisces (4), Aquarius (5)`;
 export const DEFAULT_PROFILES: AstroProfile[] = [
   {
     id: 'profile-arun',
+    personId: '001ME',
     name: 'Arun K.',
     roleLabel: 'Primary Chart',
     natalDump: ARUN_NATAL_DUMP,
@@ -135,6 +136,7 @@ export const DEFAULT_PROFILES: AstroProfile[] = [
   },
   {
     id: 'profile-meera',
+    personId: '002MS',
     name: 'Meera S.',
     roleLabel: 'Partner / Client',
     natalDump: MEERA_NATAL_DUMP,
@@ -375,4 +377,28 @@ export function getMonthBounds(startMonth: string, endMonth: string): { minDate:
     minDate: `${startMonth}-01`,
     maxDate: `${endMonth}-${String(lastDay).padStart(2, '0')}`,
   };
+}
+
+export function expandMonthRangeToLabels(startMonth: string, endMonth: string): string[] {
+  const [sy, sm] = startMonth.split('-').map(Number);
+  const [ey, em] = endMonth.split('-').map(Number);
+  if (!sy || !sm || !ey || !em) return [];
+  const total = (ey - sy) * 12 + (em - sm) + 1;
+  if (total < 1 || total > 3) return [];
+  const labels: string[] = [];
+  for (let i = 0; i < total; i++) {
+    const d = new Date(sy, sm - 1 + i, 1);
+    labels.push(d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }));
+  }
+  return labels;
+}
+
+export function formatYearMonthToLongLabel(ym: string): string {
+  const [y, m] = ym.split('-').map(Number);
+  if (!y || !m) return ym;
+  return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+export function isValidPersonId(val: string): boolean {
+  return /^[A-Za-z0-9]{5,7}$/.test(val.trim());
 }

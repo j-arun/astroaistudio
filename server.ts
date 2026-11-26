@@ -1,13 +1,15 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import fs from 'fs';
+import http from 'http';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 
 dotenv.config();
 
-const PORT = 3000;
+const PRIMARY_PORT = Number(process.env.ASTRO_PORT) || 6000;
+const PREVIEW_PORT = 3000;
 const DATA_DIR = path.resolve(process.cwd(), '.astro-studio-data');
 const PROFILES_FILE = path.join(DATA_DIR, 'profiles.json');
 const THREADS_FILE = path.join(DATA_DIR, 'threads.json');
@@ -109,11 +111,12 @@ async function startServer() {
     res.json({ ok: true });
   });
 
-  // Disk-backed External API Config (Natal API URL + Transit API URL)
+  // Disk-backed External REST API Config
   app.get('/api/config', (_req, res) => {
     const config = readJsonFile(API_CONFIG_FILE, {
-      natalApiUrl: '',
-      transitApiUrl: '',
+      baseApiUrl: '',
+      natalEndpointPath: '/api/natal/dump',
+      transitEndpointPath: '/api/transit/dump',
       apiBearerToken: '',
     });
     res.json({ config });
@@ -129,11 +132,11 @@ async function startServer() {
     res.json({ ok: true });
   });
 
-  // Server-side Proxy to Fetch Plain-Text Natal or Transit Dump from User-Provided API
+  // Server-side Proxy to Fetch Plain-Text Natal or Transit Dump via REST Query
   app.post('/api/external/fetch-dump', async (req, res) => {
-    const { url, method = 'POST', bearerToken, payload } = req.body;
+    const { url, method = 'GET', bearerToken, queryParams, payload } = req.body;
     if (!url || typeof url !== 'string') {
-      res.status(400).json({ error: 'Please provide a valid API endpoint URL.' });
+      res.status(400).json({ error: 'Please provide a valid API Base URL or endpoint URL.' });
       return;
     }
 
@@ -141,7 +144,7 @@ async function startServer() {
     try {
       parsedUrl = new URL(url);
     } catch {
-      res.status(400).json({ error: 'Malformed URL.' });
+      res.status(400).json({ error: `Malformed URL: ${url}` });
       return;
     }
 
@@ -164,35 +167,35 @@ async function startServer() {
           : `Bearer ${bearerToken.trim()}`;
       }
 
-      let targetUrl = parsedUrl.toString();
-      const upperMethod = String(method).toUpperCase() === 'GET' ? 'GET' : 'POST';
+      const upperMethod = String(method).toUpperCase() === 'POST' ? 'POST' : 'GET';
+
+      if (queryParams && typeof queryParams === 'object') {
+        for (const [k, v] of Object.entries(queryParams)) {
+          if (v !== undefined && v !== null && String(v).trim() !== '') {
+            parsedUrl.searchParams.set(k, String(v));
+          }
+        }
+      }
 
       const fetchInit: RequestInit = { method: upperMethod, headers };
       if (upperMethod === 'POST') {
         headers['Content-Type'] = 'application/json';
         fetchInit.body = JSON.stringify(payload || {});
-      } else if (payload && typeof payload === 'object') {
-        const u = new URL(targetUrl);
-        for (const [k, v] of Object.entries(payload)) {
-          if (v !== undefined && v !== null) {
-            u.searchParams.set(k, String(v));
-          }
-        }
-        targetUrl = u.toString();
       }
 
-      const upstream = await fetch(targetUrl, fetchInit);
+      const resolvedUrl = parsedUrl.toString();
+      const upstream = await fetch(resolvedUrl, fetchInit);
       const rawBody = await upstream.text();
       if (!upstream.ok) {
         res.status(upstream.status).json({
-          error: `Upstream API returned ${upstream.status}: ${rawBody.slice(0, 240)}`,
+          error: `Upstream ${resolvedUrl} returned ${upstream.status}: ${rawBody.slice(0, 240)}`,
         });
         return;
       }
 
       const contentType = upstream.headers.get('content-type') || '';
       const text = extractPlainTextFromResponse(contentType, rawBody);
-      res.json({ text });
+      res.json({ text, resolvedUrl });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to call external API.';
       res.status(502).json({ error: message });
@@ -411,9 +414,16 @@ Answer follow-up questions with direct references to specific Card numbers, exac
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Astro AI Studio running on http://0.0.0.0:${PORT}`);
+  http.createServer(app).listen(PRIMARY_PORT, '0.0.0.0', () => {
+    console.log(`Astro AI Studio listening on http://0.0.0.0:${PRIMARY_PORT}`);
   });
+
+  // In AI Studio cloud sandbox preview (DISABLE_HMR=true), keep preview port 3000 active as well
+  if (process.env.DISABLE_HMR === 'true' && PRIMARY_PORT !== PREVIEW_PORT) {
+    http.createServer(app).listen(PREVIEW_PORT, '0.0.0.0', () => {
+      console.log(`Astro AI Studio preview bridge listening on http://0.0.0.0:${PREVIEW_PORT}`);
+    });
+  }
 }
 
 startServer();

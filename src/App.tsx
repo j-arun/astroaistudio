@@ -25,6 +25,8 @@ import {
   DEFAULT_PROFILES,
   buildSampleTransitDump,
   formatMonthRangeLabel,
+  formatYearMonthToLongLabel,
+  isValidPersonId,
   monthDiffInclusive,
   parseNatalDump,
 } from './data/sampleProfiles';
@@ -38,8 +40,9 @@ const STORAGE_THREADS_KEY = 'astro_studio_threads_v1';
 const STORAGE_CONFIG_KEY = 'astro_studio_config_v1';
 
 const DEFAULT_API_CONFIG: StudioApiConfig = {
-  natalApiUrl: '',
-  transitApiUrl: '',
+  baseApiUrl: '',
+  natalEndpointPath: '/api/natal/dump',
+  transitEndpointPath: '/api/transit/dump',
   apiBearerToken: '',
 };
 
@@ -333,19 +336,40 @@ export default function App() {
     }));
   };
 
-  // Call external Transit API and apply plain text into the Transit box
+  // Call external Transit REST API: GET /api/transit/dump?personId=001ME&from=June+2026&to=August+2026
   const handleFetchTransitFromApi = async (mode: 'past' | 'future') => {
     setTransitFetchError(null);
-    if (!apiConfig.transitApiUrl.trim()) {
+    if (!apiConfig.baseApiUrl.trim()) {
       setTransitFetchError(
-        'No Transit API URL configured yet. Click the gear icon in the left sidebar to set your Transit API endpoint, or paste plain text directly.'
+        'No API Base URL configured yet. Click "Profile & APIs" to set your Base API URL, or paste plain text directly.'
       );
       setShowTransitBoxes(true);
       return;
     }
 
+    const personId = (activeProfile.personId || '').trim().toUpperCase();
+    if (!isValidPersonId(personId)) {
+      setTransitFetchError(
+        'Profile ID (personId) must be 5 to 7 alphanumeric characters (e.g., 001ME).'
+      );
+      return;
+    }
+
     const win =
       mode === 'past' ? activeThread.narrativeWindow : activeThread.futureWindow;
+    const rangeValid = mode === 'past' ? isNarrativeValid : isFutureValid;
+    if (!rangeValid) {
+      setTransitFetchError('Enter a valid 1–3 month YYYY-MM range first.');
+      return;
+    }
+
+    const fromLabel = formatYearMonthToLongLabel(win.startMonth);
+    const toLabel = formatYearMonthToLongLabel(win.endMonth);
+
+    const cleanBase = apiConfig.baseApiUrl.trim().replace(/\/+$/, '');
+    const cleanPath = (apiConfig.transitEndpointPath || '/api/transit/dump').trim();
+    const endpointUrl = `${cleanBase}${cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`}`;
+
     if (mode === 'past') setFetchingPastTransit(true);
     else setFetchingFutureTransit(true);
 
@@ -354,23 +378,24 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          url: apiConfig.transitApiUrl.trim(),
-          method: 'POST',
+          url: endpointUrl,
+          method: 'GET',
           bearerToken: apiConfig.apiBearerToken,
-          payload: {
-            profileName: activeProfile.name,
-            moonSign: parsedNatal.moonSign,
-            startMonth: win.startMonth,
-            endMonth: win.endMonth,
-            windowType: mode,
+          queryParams: {
+            personId,
+            from: fromLabel,
+            to: toLabel,
           },
         }),
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to fetch transit details.');
+        throw new Error(
+          data.error || `Failed to fetch transit for ${fromLabel} to ${toLabel}.`
+        );
       }
-      if (data.text) {
+
+      if (typeof data.text === 'string') {
         if (mode === 'past') updateNarrativeWindow({ transitDump: data.text });
         else updateFutureWindow({ transitDump: data.text });
         setShowTransitBoxes(true);
@@ -559,8 +584,13 @@ export default function App() {
               className="w-full text-left bg-[#111318] hover:bg-[#14171E] border border-[#262A34] rounded-lg px-3 py-2.5 transition-colors flex items-center justify-between gap-2"
             >
               <div className="min-w-0">
-                <div className="text-xs font-semibold text-[#EDEFF5] truncate">
-                  {activeProfile.name}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-[#EDEFF5] truncate">
+                    {activeProfile.name}
+                  </span>
+                  <span className="text-[10px] font-mono text-[#D4A853]">
+                    {activeProfile.personId || '001ME'}
+                  </span>
                 </div>
                 <div className="text-[11px] text-[#8E95A5] truncate mt-0.5">
                   {parsedNatal.moonSign.split('(')[0].trim()} Moon · Natal Loaded
@@ -586,7 +616,12 @@ export default function App() {
                         }`}
                       >
                         <div className="min-w-0">
-                          <div className="font-medium truncate">{p.name}</div>
+                          <div className="font-medium truncate">
+                            {p.name}{' '}
+                            <span className="font-mono text-[10px] opacity-80">
+                              ({p.personId || '001ME'})
+                            </span>
+                          </div>
                           <div className="text-[10px] text-[#8E95A5] truncate">
                             {pParsed.moonSign.split('(')[0].trim()} · {p.roleLabel}
                           </div>
@@ -621,6 +656,35 @@ export default function App() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Quick Inline Profile ID (personId) Box for REST Queries */}
+          <div className="bg-[#111318] border border-[#262A34] rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-2">
+            <label
+              htmlFor="sidebar-person-id"
+              className="text-[11px] font-mono text-[#8E95A5] whitespace-nowrap"
+            >
+              personId
+            </label>
+            <input
+              id="sidebar-person-id"
+              type="text"
+              maxLength={7}
+              value={activeProfile.personId || ''}
+              onChange={(e) => {
+                const nextId = e.target.value.toUpperCase();
+                const updatedProfiles = profiles.map((p) =>
+                  p.id === activeProfile.id ? { ...p, personId: nextId } : p
+                );
+                persistProfiles(updatedProfiles);
+              }}
+              placeholder="001ME"
+              className={`w-24 text-right bg-transparent text-xs font-mono tracking-wider outline-none ${
+                isValidPersonId(activeProfile.personId || '')
+                  ? 'text-[#D4A853]'
+                  : 'text-red-400'
+              }`}
+            />
           </div>
 
           <button

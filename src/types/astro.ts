@@ -31,17 +31,18 @@ export interface ParsedNatalSummary {
 }
 
 export interface StudioApiConfig {
-  natalApiUrl: string;
-  transitApiUrl: string;
+  baseApiUrl: string;
+  natalEndpointPath: string;
+  transitEndpointPath: string;
   apiBearerToken: string;
 }
 
 export interface AstroProfile {
   id: string;
+  personId: string; // 5 to 7 alphanumeric chars, e.g. 001ME
   name: string;
   roleLabel: string;
   natalDump: string;
-  natalApiUrl?: string;
   updatedAt: string;
 }
 
