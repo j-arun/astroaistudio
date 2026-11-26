@@ -6,7 +6,7 @@ import {
   ChevronUp,
   Copy,
   Plus,
-  Settings2,
+  Settings,
   Sparkles,
   Trash2,
   UserPlus,
@@ -670,17 +670,20 @@ export default function App() {
       <aside className="w-[272px] shrink-0 bg-[#161920] border-r border-[#262A34] flex flex-col justify-between">
         <div className="p-3.5 space-y-3 border-b border-[#262A34]">
           <div className="flex items-center justify-between px-1">
-            <span className="text-sm font-display font-semibold tracking-tight text-[#EDEFF5]">
-              Astro AI Studio
-            </span>
-            <button
-              type="button"
-              onClick={() => setModalMode(activeProfile ? 'edit' : 'create')}
-              title="Settings (Profile, REST APIs & Gemini/Fable LLM Adapters)"
-              className="text-[#8E95A5] hover:text-[#EDEFF5] p-1 rounded transition-colors"
-            >
-              <Settings2 className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold tracking-tight text-[#EDEFF5]">
+                Astro AI Studio
+              </span>
+              <button
+                type="button"
+                onClick={() => setModalMode(activeProfile ? 'edit' : 'create')}
+                title="Settings (Profile, REST APIs & Gemini/Fable LLM Adapters)"
+                aria-label="Settings"
+                className="p-1.5 rounded-lg border border-[#2E3442] bg-[#111318] text-[#D4A853] hover:border-[#D4A853]/70 hover:bg-[#1B1F29] transition-colors"
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           {/* Active Session Profile Switcher */}
