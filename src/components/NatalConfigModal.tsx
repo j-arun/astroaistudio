@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Globe, RefreshCw, X } from 'lucide-react';
+import { Globe, RefreshCw, Trash2, X } from 'lucide-react';
 import { AstroProfile, StudioApiConfig } from '../types/astro';
-import { ARUN_NATAL_DUMP, isValidPersonId } from '../data/sampleProfiles';
+import { isValidPersonId } from '../data/sampleProfiles';
 
 interface NatalConfigModalProps {
   isOpen: boolean;
@@ -10,6 +10,7 @@ interface NatalConfigModalProps {
   apiConfig: StudioApiConfig;
   onClose: () => void;
   onSave: (profile: AstroProfile, nextApiConfig: StudioApiConfig) => void;
+  onDelete?: (profileId: string) => void;
 }
 
 function joinEndpoint(baseUrl: string, path: string): string {
@@ -25,16 +26,17 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
   apiConfig,
   onClose,
   onSave,
+  onDelete,
 }) => {
   const [personId, setPersonId] = useState(
-    mode === 'edit' && profile ? profile.personId : '001ME'
+    mode === 'edit' && profile ? profile.personId : ''
   );
   const [name, setName] = useState(mode === 'edit' && profile ? profile.name : '');
   const [roleLabel, setRoleLabel] = useState(
-    mode === 'edit' && profile ? profile.roleLabel : 'Primary Chart'
+    mode === 'edit' && profile ? profile.roleLabel : ''
   );
   const [natalDump, setNatalDump] = useState(
-    mode === 'edit' && profile ? profile.natalDump : ARUN_NATAL_DUMP
+    mode === 'edit' && profile ? profile.natalDump : ''
   );
 
   const [baseApiUrl, setBaseApiUrl] = useState(apiConfig.baseApiUrl || '');
@@ -57,11 +59,11 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
 
   const resolvedNatalPreview = `${
     joinEndpoint(baseApiUrl, natalEndpointPath) || natalEndpointPath
-  }?personId=${encodeURIComponent(trimmedPersonId || '001ME')}`;
+  }?personId=${encodeURIComponent(trimmedPersonId || '<personId>')}`;
 
   const resolvedTransitPreview = `${
     joinEndpoint(baseApiUrl, transitEndpointPath) || transitEndpointPath
-  }?personId=${encodeURIComponent(trimmedPersonId || '001ME')}&from=June+2026&to=August+2026`;
+  }?personId=${encodeURIComponent(trimmedPersonId || '<personId>')}&from=June+2026&to=August+2026`;
 
   const handleFetchNatalFromApi = async () => {
     setFetchError(null);
@@ -112,7 +114,10 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
       setFetchError('Profile ID (personId) must be 5 to 7 alphanumeric characters (e.g., 001ME).');
       return;
     }
-    if (!name.trim() || !natalDump.trim()) return;
+    if (!name.trim() || !natalDump.trim()) {
+      setFetchError('Profile Name and Plain-Text Natal Dump are required.');
+      return;
+    }
     onSave(
       {
         id: mode === 'edit' && profile ? profile.id : `profile-${Date.now()}`,
@@ -132,6 +137,13 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
     onClose();
   };
 
+  const handleDeleteClick = () => {
+    if (mode === 'edit' && profile && onDelete) {
+      onDelete(profile.id);
+      onClose();
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
       <div className="w-full max-w-3xl bg-[#181B22] border border-[#2D3240] rounded-xl overflow-hidden flex flex-col max-h-[92vh]">
@@ -139,11 +151,11 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
           <div>
             <h2 className="text-base font-semibold text-[#EDEFF5]">
               {mode === 'create'
-                ? 'New Profile & One-Time Natal Setup'
-                : `Profile & REST API Configuration · ${profile?.name}`}
+                ? 'New Profile & Natal Setup'
+                : `Configure Profile · ${profile?.personId || profile?.name}`}
             </h2>
             <p className="text-xs text-[#8E95A5] mt-0.5">
-              Set your 5–7 char Profile ID (<span className="font-mono text-[#D4A853]">personId</span>) and external API endpoints once per session.
+              Set your 5–7 character <span className="font-mono text-[#D4A853]">personId</span> and REST endpoints once per session.
             </p>
           </div>
           <button
@@ -165,7 +177,7 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                 </label>
                 <span
                   className={`text-[10px] font-mono ${
-                    personIdValid ? 'text-[#D4A853]' : 'text-red-400'
+                    personIdValid ? 'text-[#D4A853]' : 'text-[#8E95A5]'
                   }`}
                 >
                   5–7 chars
@@ -177,8 +189,8 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                 maxLength={7}
                 value={personId}
                 onChange={(e) => setPersonId(e.target.value.toUpperCase())}
-                placeholder="001ME"
-                className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-sm font-mono tracking-wider text-[#EDEFF5] outline-none"
+                placeholder="e.g., 001ME"
+                className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-sm font-mono tracking-wider text-[#EDEFF5] placeholder-[#555C6E] outline-none"
               />
             </div>
             <div>
@@ -190,20 +202,20 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Arun K."
-                className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-sm text-[#EDEFF5] outline-none"
+                placeholder="Enter name"
+                className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-sm text-[#EDEFF5] placeholder-[#555C6E] outline-none"
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
-                Profile Label
+                Label (Optional)
               </label>
               <input
                 type="text"
                 value={roleLabel}
                 onChange={(e) => setRoleLabel(e.target.value)}
                 placeholder="e.g., Primary Chart"
-                className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-sm text-[#EDEFF5] outline-none"
+                className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-sm text-[#EDEFF5] placeholder-[#555C6E] outline-none"
               />
             </div>
           </div>
@@ -282,7 +294,6 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
               </div>
             </div>
 
-            {/* Live Query Preview */}
             <div className="bg-[#181B22] border border-[#262A34] rounded-lg px-3 py-2 space-y-1 text-[11px] font-mono text-[#8E95A5]">
               <div className="truncate">
                 <span className="text-[#D4A853]">GET Natal:</span> {resolvedNatalPreview}
@@ -311,25 +322,39 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
               rows={10}
               value={natalDump}
               onChange={(e) => setNatalDump(e.target.value)}
-              placeholder="Paste or fetch your complete plain-text natal dump here (D1–D144, Dasha–Bhukti, SAV/BAV)..."
-              className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg p-3.5 text-xs font-mono leading-relaxed text-[#D8DCE6] outline-none resize-y"
+              placeholder="Paste or fetch your plain-text natal dump here (D1–D144, Dasha–Bhukti, SAV/BAV)..."
+              className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg p-3.5 text-xs font-mono leading-relaxed text-[#D8DCE6] placeholder-[#555C6E] outline-none resize-y"
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#262A34]">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-medium text-[#B9C0D0] hover:text-[#EDEFF5] border border-[#262A34] rounded-lg transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 text-xs font-semibold bg-[#D4A853] hover:bg-[#DFB96B] text-[#111318] rounded-lg transition-colors"
-            >
-              Apply &amp; Save for Session
-            </button>
+          <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#262A34]">
+            <div>
+              {mode === 'edit' && profile && onDelete && (
+                <button
+                  type="button"
+                  onClick={handleDeleteClick}
+                  className="px-3.5 py-2 text-xs font-medium text-red-300 hover:text-red-200 bg-red-950/30 hover:bg-red-950/50 border border-red-900/50 rounded-lg transition-colors flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Profile ({profile.personId})</span>
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-xs font-medium text-[#B9C0D0] hover:text-[#EDEFF5] border border-[#262A34] rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 text-xs font-semibold bg-[#D4A853] hover:bg-[#DFB96B] text-[#111318] rounded-lg transition-colors"
+              >
+                Apply &amp; Save for Session
+              </button>
+            </div>
           </div>
         </form>
       </div>

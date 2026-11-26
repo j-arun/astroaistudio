@@ -4,14 +4,11 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  Clock,
-  Lock,
-  PanelRightClose,
-  PanelRightOpen,
   Plus,
   RefreshCw,
   Settings2,
   Trash2,
+  UserPlus,
 } from 'lucide-react';
 import {
   AstroProfile,
@@ -30,14 +27,15 @@ import {
   monthDiffInclusive,
   parseNatalDump,
 } from './data/sampleProfiles';
-import { KundaliChart } from './components/KundaliChart';
 import { MagicCardDeck } from './components/MagicCardDeck';
 import { OpenedCardSpread } from './components/OpenedCardSpread';
 import { NatalConfigModal } from './components/NatalConfigModal';
 
-const STORAGE_PROFILES_KEY = 'astro_studio_profiles_v1';
-const STORAGE_THREADS_KEY = 'astro_studio_threads_v1';
-const STORAGE_CONFIG_KEY = 'astro_studio_config_v1';
+const STORAGE_PROFILES_KEY = 'astro_studio_profiles_v2';
+const STORAGE_THREADS_KEY = 'astro_studio_threads_v2';
+const STORAGE_CONFIG_KEY = 'astro_studio_config_v2';
+
+const LEGACY_SEEDED_IDS = new Set(['profile-arun', 'profile-meera']);
 
 const DEFAULT_API_CONFIG: StudioApiConfig = {
   baseApiUrl: '',
@@ -50,24 +48,25 @@ function isValidYearMonth(val: string): boolean {
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(val.trim());
 }
 
-function createInitialDraftThread(profile: AstroProfile): AstroThread {
-  const parsed = parseNatalDump(profile.natalDump, profile.name);
+function createInitialDraftThread(profile: AstroProfile | null): AstroThread {
+  const parsed = profile ? parseNatalDump(profile.natalDump, profile.name) : null;
+  const moonSign = parsed?.moonSign || 'Moon Sign';
   return {
     id: `thread-${Date.now()}`,
-    profileId: profile.id,
-    title: 'New Astro Reading',
+    profileId: profile?.id || '',
+    title: 'New Reading Thread',
     createdAt: new Date().toISOString(),
     step: 'narrative',
     narrativeWindow: {
       startMonth: '2026-06',
       endMonth: '2026-08',
-      transitDump: buildSampleTransitDump('2026-06', '2026-08', parsed.moonSign, false),
+      transitDump: buildSampleTransitDump('2026-06', '2026-08', moonSign, false),
     },
     cards: [],
     futureWindow: {
       startMonth: '2027-01',
       endMonth: '2027-02',
-      transitDump: buildSampleTransitDump('2027-01', '2027-02', parsed.moonSign, true),
+      transitDump: buildSampleTransitDump('2027-01', '2027-02', moonSign, true),
     },
     messages: [],
   };
@@ -75,14 +74,13 @@ function createInitialDraftThread(profile: AstroProfile): AstroThread {
 
 export default function App() {
   const [profiles, setProfiles] = useState<AstroProfile[]>(DEFAULT_PROFILES);
-  const [activeProfileId, setActiveProfileId] = useState<string>(DEFAULT_PROFILES[0].id);
+  const [activeProfileId, setActiveProfileId] = useState<string>('');
   const [apiConfig, setApiConfig] = useState<StudioApiConfig>(DEFAULT_API_CONFIG);
   const [savedThreads, setSavedThreads] = useState<AstroThread[]>([]);
   const [activeThread, setActiveThread] = useState<AstroThread>(() =>
-    createInitialDraftThread(DEFAULT_PROFILES[0])
+    createInitialDraftThread(null)
   );
 
-  const [showInspector, setShowInspector] = useState(true);
   const [showTransitBoxes, setShowTransitBoxes] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'edit' | 'create' | null>(null);
@@ -97,7 +95,7 @@ export default function App() {
   const [isSendingChat, setIsSendingChat] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
 
-  // Hydrate disk-backed Profiles, Threads, and API Config
+  // Hydrate disk-backed Profiles, Threads, and API Config (excluding removed sample profiles)
   useEffect(() => {
     const loadInitialData = async () => {
       let loadedProfiles: AstroProfile[] | null = null;
@@ -112,7 +110,7 @@ export default function App() {
         ]);
         if (pRes.ok) {
           const pData = await pRes.json();
-          if (Array.isArray(pData.profiles) && pData.profiles.length > 0) {
+          if (Array.isArray(pData.profiles)) {
             loadedProfiles = pData.profiles;
           }
         }
@@ -159,14 +157,18 @@ export default function App() {
         }
       }
 
-      const finalProfiles =
-        loadedProfiles && loadedProfiles.length > 0 ? loadedProfiles : DEFAULT_PROFILES;
-      setProfiles(finalProfiles);
-      setActiveProfileId(finalProfiles[0].id);
-      setActiveThread(createInitialDraftThread(finalProfiles[0]));
+      const cleanedProfiles = (loadedProfiles || []).filter(
+        (p) => !LEGACY_SEEDED_IDS.has(p.id)
+      );
+      setProfiles(cleanedProfiles);
+      const firstProfile = cleanedProfiles[0] || null;
+      setActiveProfileId(firstProfile?.id || '');
+      setActiveThread(createInitialDraftThread(firstProfile));
 
       if (loadedThreads) {
-        setSavedThreads(loadedThreads);
+        setSavedThreads(
+          loadedThreads.filter((t) => !LEGACY_SEEDED_IDS.has(t.profileId))
+        );
       }
       if (loadedConfig) {
         setApiConfig(loadedConfig);
@@ -177,18 +179,24 @@ export default function App() {
   }, []);
 
   const activeProfile = useMemo(
-    () => profiles.find((p) => p.id === activeProfileId) || profiles[0],
+    () => profiles.find((p) => p.id === activeProfileId) || null,
     [profiles, activeProfileId]
   );
 
   const parsedNatal = useMemo(
-    () => parseNatalDump(activeProfile.natalDump, activeProfile.name),
+    () =>
+      activeProfile
+        ? parseNatalDump(activeProfile.natalDump, activeProfile.name)
+        : null,
     [activeProfile]
   );
 
   const profileThreads = useMemo(
-    () => savedThreads.filter((t) => t.profileId === activeProfile.id),
-    [savedThreads, activeProfile.id]
+    () =>
+      activeProfile
+        ? savedThreads.filter((t) => t.profileId === activeProfile.id)
+        : [],
+    [savedThreads, activeProfile]
   );
 
   const persistProfiles = async (nextProfiles: AstroProfile[]) => {
@@ -251,12 +259,34 @@ export default function App() {
     persistProfiles(next);
     persistConfig(nextConfig);
     setActiveProfileId(updated.id);
-    if (!exists) {
+    if (!exists || !activeProfile) {
       setActiveThread(createInitialDraftThread(updated));
     }
   };
 
+  const handleDeleteProfile = (profileId: string) => {
+    const remaining = profiles.filter((p) => p.id !== profileId);
+    const remainingThreads = savedThreads.filter((t) => t.profileId !== profileId);
+    persistProfiles(remaining);
+    persistThreads(remainingThreads);
+    setProfileMenuOpen(false);
+
+    if (activeProfileId === profileId) {
+      const nextProfile = remaining[0] || null;
+      setActiveProfileId(nextProfile?.id || '');
+      setActiveThread(createInitialDraftThread(nextProfile));
+      setCustomThreadTitle('');
+      setAnalyzeError(null);
+      setChatError(null);
+      setTransitFetchError(null);
+    }
+  };
+
   const handleStartNewThread = () => {
+    if (!activeProfile) {
+      setModalMode('create');
+      return;
+    }
     setActiveThread(createInitialDraftThread(activeProfile));
     setCustomThreadTitle('');
     setAnalyzeError(null);
@@ -338,10 +368,11 @@ export default function App() {
 
   // Call external Transit REST API: GET /api/transit/dump?personId=001ME&from=June+2026&to=August+2026
   const handleFetchTransitFromApi = async (mode: 'past' | 'future') => {
+    if (!activeProfile) return;
     setTransitFetchError(null);
     if (!apiConfig.baseApiUrl.trim()) {
       setTransitFetchError(
-        'No API Base URL configured yet. Click "Profile & APIs" to set your Base API URL, or paste plain text directly.'
+        'No API Base URL configured yet. Open Profile Settings (gear icon) to set your Base API URL, or paste plain text directly.'
       );
       setShowTransitBoxes(true);
       return;
@@ -413,7 +444,9 @@ export default function App() {
 
   // Unified Submit: Sends Session Natal (Fold 1) + Past Narrative & Cards (Fold 2) + Future Window (Fold 3)
   const handleSubmitThread = async () => {
-    if (!isNarrativeValid || !isFutureValid || activeThread.cards.length === 0) return;
+    if (!activeProfile || !isNarrativeValid || !isFutureValid || activeThread.cards.length === 0) {
+      return;
+    }
     setIsAnalyzing(true);
     setAnalyzeError(null);
 
@@ -475,6 +508,7 @@ export default function App() {
 
       const completedThread: AstroThread = {
         ...activeThread,
+        profileId: activeProfile.id,
         title: autoTitle,
         submittedAt: new Date().toISOString(),
         step: 'reading',
@@ -496,6 +530,7 @@ export default function App() {
 
   // Persistent 3-Fold Thread Follow-Up Chat
   const handleSendChat = async (userMessage: string) => {
+    if (!activeProfile) return;
     setChatError(null);
     const userMsg: ThreadMessage = {
       id: `msg-${Date.now()}-u`,
@@ -560,7 +595,7 @@ export default function App() {
   return (
     <div className="h-screen w-screen overflow-hidden bg-[#111318] text-[#EDEFF5] flex">
       {/* LEFT SIDEBAR — PROFILE SESSION + SUBMITTED THREADS */}
-      <aside className="w-[268px] shrink-0 bg-[#161920] border-r border-[#262A34] flex flex-col justify-between">
+      <aside className="w-[272px] shrink-0 bg-[#161920] border-r border-[#262A34] flex flex-col justify-between">
         <div className="p-3.5 space-y-3 border-b border-[#262A34]">
           <div className="flex items-center justify-between px-1">
             <span className="text-sm font-display font-semibold tracking-tight text-[#EDEFF5]">
@@ -568,8 +603,8 @@ export default function App() {
             </span>
             <button
               type="button"
-              onClick={() => setModalMode('edit')}
-              title="Configure Profile Natal Dump & External APIs"
+              onClick={() => setModalMode(activeProfile ? 'edit' : 'create')}
+              title="Configure Profile, Natal Dump & REST APIs"
               className="text-[#8E95A5] hover:text-[#EDEFF5] p-1 rounded transition-colors"
             >
               <Settings2 className="w-4 h-4" />
@@ -578,70 +613,107 @@ export default function App() {
 
           {/* Active Session Profile Switcher */}
           <div className="relative">
-            <button
-              type="button"
-              onClick={() => setProfileMenuOpen((v) => !v)}
-              className="w-full text-left bg-[#111318] hover:bg-[#14171E] border border-[#262A34] rounded-lg px-3 py-2.5 transition-colors flex items-center justify-between gap-2"
-            >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-[#EDEFF5] truncate">
-                    {activeProfile.name}
-                  </span>
-                  <span className="text-[10px] font-mono text-[#D4A853]">
-                    {activeProfile.personId || '001ME'}
-                  </span>
+            {activeProfile ? (
+              <button
+                type="button"
+                onClick={() => setProfileMenuOpen((v) => !v)}
+                className="w-full text-left bg-[#111318] hover:bg-[#14171E] border border-[#262A34] rounded-lg px-3 py-2.5 transition-colors flex items-center justify-between gap-2"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-[#EDEFF5] truncate">
+                      {activeProfile.name}
+                    </span>
+                    <span className="text-[10px] font-mono text-[#D4A853]">
+                      {activeProfile.personId}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-[#8E95A5] truncate mt-0.5">
+                    {parsedNatal?.moonSign.split('(')[0].trim()} · Natal Loaded
+                  </div>
                 </div>
-                <div className="text-[11px] text-[#8E95A5] truncate mt-0.5">
-                  {parsedNatal.moonSign.split('(')[0].trim()} Moon · Natal Loaded
+                <ChevronDown className="w-3.5 h-3.5 text-[#8E95A5] shrink-0" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setModalMode('create')}
+                className="w-full text-left bg-[#111318] hover:bg-[#14171E] border border-dashed border-[#363C4A] rounded-lg px-3 py-2.5 transition-colors flex items-center justify-between gap-2"
+              >
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-[#D4A853]">
+                    Add Profile (personId)
+                  </div>
+                  <div className="text-[11px] text-[#8E95A5] mt-0.5">
+                    No profiles loaded
+                  </div>
                 </div>
-              </div>
-              <ChevronDown className="w-3.5 h-3.5 text-[#8E95A5] shrink-0" />
-            </button>
+                <UserPlus className="w-4 h-4 text-[#D4A853] shrink-0" />
+              </button>
+            )}
 
             {profileMenuOpen && (
               <div className="absolute left-0 right-0 mt-1.5 z-30 bg-[#1B1F28] border border-[#2D3240] rounded-lg overflow-hidden shadow-xl">
-                <div className="py-1">
+                <div className="py-1 max-h-56 overflow-y-auto">
                   {profiles.map((p) => {
                     const pParsed = parseNatalDump(p.natalDump, p.name);
                     return (
-                      <button
+                      <div
                         key={p.id}
-                        type="button"
-                        onClick={() => handleSelectProfile(p)}
-                        className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between ${
-                          p.id === activeProfile.id
+                        className={`flex items-center justify-between px-2.5 py-2 text-xs transition-colors ${
+                          p.id === activeProfile?.id
                             ? 'bg-[#D4A853]/10 text-[#D4A853]'
                             : 'text-[#EDEFF5] hover:bg-[#242936]'
                         }`}
                       >
-                        <div className="min-w-0">
-                          <div className="font-medium truncate">
-                            {p.name}{' '}
-                            <span className="font-mono text-[10px] opacity-80">
-                              ({p.personId || '001ME'})
-                            </span>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectProfile(p)}
+                          className="flex-1 min-w-0 text-left flex items-center justify-between gap-2 pr-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="font-medium truncate">
+                              {p.name}{' '}
+                              <span className="font-mono text-[10px] opacity-80">
+                                ({p.personId})
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-[#8E95A5] truncate">
+                              {pParsed.moonSign.split('(')[0].trim()} · {p.roleLabel}
+                            </div>
                           </div>
-                          <div className="text-[10px] text-[#8E95A5] truncate">
-                            {pParsed.moonSign.split('(')[0].trim()} · {p.roleLabel}
-                          </div>
-                        </div>
-                        {p.id === activeProfile.id && <Check className="w-3.5 h-3.5 shrink-0" />}
-                      </button>
+                          {p.id === activeProfile?.id && (
+                            <Check className="w-3.5 h-3.5 shrink-0" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteProfile(p.id);
+                          }}
+                          title={`Delete ${p.personId}`}
+                          className="p-1 text-[#6C7384] hover:text-red-400 rounded transition-colors shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
                 <div className="border-t border-[#262A34] p-1.5 flex flex-col gap-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setProfileMenuOpen(false);
-                      setModalMode('edit');
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 text-xs text-[#B9C0D0] hover:text-[#EDEFF5] hover:bg-[#242936] rounded transition-colors"
-                  >
-                    Configure Natal &amp; APIs
-                  </button>
+                  {activeProfile && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileMenuOpen(false);
+                        setModalMode('edit');
+                      }}
+                      className="w-full text-left px-2.5 py-1.5 text-xs text-[#B9C0D0] hover:text-[#EDEFF5] hover:bg-[#242936] rounded transition-colors"
+                    >
+                      Configure Natal &amp; APIs
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
@@ -651,46 +723,59 @@ export default function App() {
                     className="w-full text-left px-2.5 py-1.5 text-xs text-[#D4A853] hover:bg-[#242936] rounded transition-colors flex items-center gap-1.5"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    New Disk Profile
+                    New Profile (personId)
                   </button>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Quick Inline Profile ID (personId) Box for REST Queries */}
-          <div className="bg-[#111318] border border-[#262A34] rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-2">
-            <label
-              htmlFor="sidebar-person-id"
-              className="text-[11px] font-mono text-[#8E95A5] whitespace-nowrap"
-            >
-              personId
-            </label>
-            <input
-              id="sidebar-person-id"
-              type="text"
-              maxLength={7}
-              value={activeProfile.personId || ''}
-              onChange={(e) => {
-                const nextId = e.target.value.toUpperCase();
-                const updatedProfiles = profiles.map((p) =>
-                  p.id === activeProfile.id ? { ...p, personId: nextId } : p
-                );
-                persistProfiles(updatedProfiles);
-              }}
-              placeholder="001ME"
-              className={`w-24 text-right bg-transparent text-xs font-mono tracking-wider outline-none ${
-                isValidPersonId(activeProfile.personId || '')
-                  ? 'text-[#D4A853]'
-                  : 'text-red-400'
-              }`}
-            />
-          </div>
+          {/* Inline Profile ID (personId) Box + Delete Button */}
+          {activeProfile && (
+            <div className="bg-[#111318] border border-[#262A34] rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-2">
+              <label
+                htmlFor="sidebar-person-id"
+                className="text-[11px] font-mono text-[#8E95A5] whitespace-nowrap"
+              >
+                personId
+              </label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  id="sidebar-person-id"
+                  type="text"
+                  maxLength={7}
+                  value={activeProfile.personId}
+                  onChange={(e) => {
+                    const nextId = e.target.value.toUpperCase();
+                    const updatedProfiles = profiles.map((p) =>
+                      p.id === activeProfile.id ? { ...p, personId: nextId } : p
+                    );
+                    persistProfiles(updatedProfiles);
+                  }}
+                  placeholder="001ME"
+                  className={`w-20 text-right bg-transparent text-xs font-mono tracking-wider outline-none ${
+                    isValidPersonId(activeProfile.personId)
+                      ? 'text-[#D4A853]'
+                      : 'text-red-400'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleDeleteProfile(activeProfile.id)}
+                  title={`Delete ${activeProfile.personId}`}
+                  className="text-[#6C7384] hover:text-red-400 p-0.5 rounded transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
 
           <button
             type="button"
+            disabled={!activeProfile}
             onClick={handleStartNewThread}
-            className="w-full py-2 px-3 bg-[#D4A853] hover:bg-[#DFB96B] text-[#111318] text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap"
+            className="w-full py-2 px-3 bg-[#D4A853] hover:bg-[#DFB96B] disabled:opacity-40 disabled:cursor-not-allowed text-[#111318] text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap"
           >
             <Plus className="w-3.5 h-3.5" />
             New Reading Thread
@@ -707,7 +792,9 @@ export default function App() {
           {profileThreads.length === 0 ? (
             <div className="px-2.5 py-6 text-center border border-dashed border-[#262A34] rounded-lg mx-1">
               <p className="text-xs text-[#8E95A5] leading-relaxed">
-                Complete your narrative cards &amp; timelines, then click Submit—the finished thread appears here with its name, date, and time.
+                {activeProfile
+                  ? 'Complete your narrative cards & timelines, then click Submit—the finished thread appears here with its name, date, and time.'
+                  : 'Create a profile first to start logging reading threads.'}
               </p>
             </div>
           ) : (
@@ -758,87 +845,56 @@ export default function App() {
 
         {/* Session Natal Status Footer */}
         <div className="px-4 py-2.5 border-t border-[#262A34] text-[11px] text-[#6C7384] flex items-center justify-between">
-          <span>Session Natal Active</span>
+          <span>{activeProfile ? 'Session Natal Active' : 'No Session Profile'}</span>
           <span className="font-mono tabular-nums text-[#8E95A5]">
-            {parsedNatal.tokenEstimate.toLocaleString()} tok
+            {parsedNatal ? `${parsedNatal.tokenEstimate.toLocaleString()} tok` : '—'}
           </span>
         </div>
       </aside>
 
-      {/* CENTER WORKSPACE */}
+      {/* MAIN WORKSPACE */}
       <main className="flex-1 min-w-0 flex flex-col bg-[#111318]">
-        {/* Clean 2-Phase Thread Header */}
-        <header className="h-14 shrink-0 border-b border-[#262A34] px-5 flex items-center justify-between gap-4 bg-[#14171D]">
-          <div className="flex items-center gap-2 overflow-x-auto">
-            <button
-              type="button"
-              onClick={() =>
-                !activeThread.submittedAt &&
-                setActiveThread((prev) => ({ ...prev, step: 'narrative' }))
-              }
-              className={`px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                activeThread.step === 'narrative'
-                  ? 'bg-[#D4A853]/15 text-[#D4A853] border border-[#D4A853]/40'
-                  : 'text-[#8E95A5]'
-              }`}
-            >
-              <span className="font-mono text-[10px]">01.</span>
-              <span>Narrative &amp; Magic Cards</span>
-            </button>
-
-            <span className="text-[#363C4A] text-xs select-none">→</span>
-
-            <button
-              type="button"
-              disabled={!activeThread.submittedAt}
-              onClick={() =>
-                activeThread.submittedAt &&
-                setActiveThread((prev) => ({ ...prev, step: 'reading' }))
-              }
-              className={`px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                activeThread.step === 'reading'
-                  ? 'bg-[#D4A853]/15 text-[#D4A853] border border-[#D4A853]/40'
-                  : 'text-[#555C6E] cursor-not-allowed'
-              }`}
-            >
-              <span className="font-mono text-[10px]">02.</span>
-              <span>Unfolded Reading &amp; Thread</span>
-              {!activeThread.submittedAt && <Lock className="w-3 h-3 opacity-60" />}
-            </button>
+        {/* Minimal Top Bar */}
+        <header className="h-12 shrink-0 border-b border-[#262A34] px-6 flex items-center justify-between bg-[#14171D]">
+          <div className="flex items-center gap-2 text-xs text-[#8E95A5] truncate">
+            <span className="font-medium text-[#EDEFF5] truncate">
+              {activeProfile
+                ? activeThread.step === 'reading'
+                  ? activeThread.title
+                  : `${activeProfile.name} (${activeProfile.personId})`
+                : 'Profile Setup Required'}
+            </span>
           </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setModalMode('edit')}
-              className="px-2.5 py-1.5 text-xs font-medium text-[#B9C0D0] hover:text-[#EDEFF5] border border-[#262A34] rounded-md whitespace-nowrap shrink-0 transition-colors"
-            >
-              Profile &amp; APIs
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowInspector((v) => !v)}
-              className="px-2.5 py-1.5 text-xs font-medium text-[#B9C0D0] hover:text-[#EDEFF5] border border-[#262A34] rounded-md flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors"
-            >
-              {showInspector ? (
-                <>
-                  <PanelRightClose className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Hide Chart</span>
-                </>
-              ) : (
-                <>
-                  <PanelRightOpen className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Show Chart</span>
-                </>
-              )}
-            </button>
-          </div>
+          {activeProfile && (
+            <span className="text-[11px] font-mono text-[#6C7384]">
+              {parsedNatal?.currentDasha}
+            </span>
+          )}
         </header>
 
-        {/* Scrollable Content */}
+        {/* Scrollable Workspace Content */}
         <div className="flex-1 overflow-y-auto px-6 py-6">
           <div className="max-w-4xl mx-auto space-y-6">
-            {activeThread.step === 'narrative' && (
+            {!activeProfile ? (
+              <div className="bg-[#181B22] border border-[#262A34] rounded-xl p-8 text-center space-y-4 mt-8">
+                <h1 className="text-lg font-semibold text-[#EDEFF5]">
+                  Set Up Your Profile (personId) &amp; Natal Dump
+                </h1>
+                <p className="text-sm text-[#8E95A5] max-w-lg mx-auto leading-relaxed">
+                  Enter your 5–7 character <span className="font-mono text-[#D4A853]">personId</span> (for example <span className="font-mono text-[#EDEFF5]">001ME</span>), configure your REST API Base URL, and fetch or paste your plain-text Natal Dump once for the session.
+                </p>
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setModalMode('create')}
+                    className="px-5 py-2.5 bg-[#D4A853] hover:bg-[#DFB96B] text-[#111318] text-xs font-semibold rounded-lg transition-colors inline-flex items-center gap-2"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Create Profile &amp; Configure APIs
+                  </button>
+                </div>
+              </div>
+            ) : activeThread.step === 'narrative' ? (
               <>
                 {/* TIMELINES & TRANSITS BAR (TYPED MONTHS + API FETCH) */}
                 <div className="bg-[#181B22] border border-[#262A34] rounded-xl p-5 space-y-4">
@@ -849,7 +905,10 @@ export default function App() {
                       </h1>
                       <p className="text-xs text-[#8E95A5] mt-0.5">
                         Type <span className="font-mono text-[#EDEFF5]">YYYY-MM</span> ranges (1–3 months max each). Natal data for{' '}
-                        <span className="text-[#D4A853] font-medium">{activeProfile.name}</span> is already locked in for this session.
+                        <span className="text-[#D4A853] font-medium">
+                          {activeProfile.name} ({activeProfile.personId})
+                        </span>{' '}
+                        remains loaded for this session.
                       </p>
                     </div>
 
@@ -887,7 +946,7 @@ export default function App() {
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="block text-[10px] text-[#8E95A5] mb-1">
-                            Start (YYYY-MM)
+                            From (YYYY-MM)
                           </label>
                           <input
                             type="text"
@@ -899,7 +958,7 @@ export default function App() {
                         </div>
                         <div>
                           <label className="block text-[10px] text-[#8E95A5] mb-1">
-                            End (YYYY-MM)
+                            To (YYYY-MM)
                           </label>
                           <input
                             type="text"
@@ -956,7 +1015,7 @@ export default function App() {
                       <div className="grid grid-cols-3 gap-2">
                         <div>
                           <label className="block text-[10px] text-[#8E95A5] mb-1">
-                            Start (YYYY-MM)
+                            From (YYYY-MM)
                           </label>
                           <input
                             type="text"
@@ -968,7 +1027,7 @@ export default function App() {
                         </div>
                         <div>
                           <label className="block text-[10px] text-[#8E95A5] mb-1">
-                            End (YYYY-MM)
+                            To (YYYY-MM)
                           </label>
                           <input
                             type="text"
@@ -1030,22 +1089,6 @@ export default function App() {
                           <label className="text-xs font-medium text-[#8E95A5]">
                             Past Window Plain-Text Transits
                           </label>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateNarrativeWindow({
-                                transitDump: buildSampleTransitDump(
-                                  activeThread.narrativeWindow.startMonth,
-                                  activeThread.narrativeWindow.endMonth,
-                                  parsedNatal.moonSign,
-                                  false
-                                ),
-                              })
-                            }
-                            className="text-[11px] text-[#D4A853] hover:text-[#DFB96B]"
-                          >
-                            Apply Sample
-                          </button>
                         </div>
                         <textarea
                           rows={5}
@@ -1060,22 +1103,6 @@ export default function App() {
                           <label className="text-xs font-medium text-[#8E95A5]">
                             Future Window Plain-Text Transits
                           </label>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateFutureWindow({
-                                transitDump: buildSampleTransitDump(
-                                  activeThread.futureWindow.startMonth,
-                                  activeThread.futureWindow.endMonth,
-                                  parsedNatal.moonSign,
-                                  true
-                                ),
-                              })
-                            }
-                            className="text-[11px] text-[#D4A853] hover:text-[#DFB96B]"
-                          >
-                            Apply Sample
-                          </button>
                         </div>
                         <textarea
                           rows={5}
@@ -1106,10 +1133,7 @@ export default function App() {
                   onSubmitThread={handleSubmitThread}
                 />
               </>
-            )}
-
-            {/* FOLD 3 UNFOLDED: OPENED SPREAD + FLOWING CHAT */}
-            {activeThread.step === 'reading' && (
+            ) : (
               <OpenedCardSpread
                 thread={activeThread}
                 isSendingChat={isSendingChat}
@@ -1121,90 +1145,15 @@ export default function App() {
         </div>
       </main>
 
-      {/* RIGHT INSPECTOR — SESSION NATAL CHART & 3-FOLD BRIDGE */}
-      {showInspector && (
-        <aside className="hidden lg:flex w-[340px] shrink-0 bg-[#161920] border-l border-[#262A34] flex-col overflow-y-auto p-4 space-y-5">
-          <KundaliChart natal={parsedNatal} />
-
-          <div className="bg-[#111318] border border-[#262A34] rounded-lg p-3.5 space-y-1.5">
-            <div className="text-[11px] font-mono text-[#6C7384]">ACTIVE VIMSHOTTARI DASHA</div>
-            <div className="text-xs font-medium text-[#EDEFF5] leading-snug">
-              {parsedNatal.currentDasha}
-            </div>
-            <div className="text-[11px] text-[#8E95A5]">{parsedNatal.nakshatra}</div>
-          </div>
-
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between text-xs font-semibold text-[#EDEFF5]">
-              <span>Session 3-Fold Payload</span>
-              <Clock className="w-3.5 h-3.5 text-[#D4A853]" />
-            </div>
-
-            <div className="bg-[#111318] border border-[#262A34] rounded-lg p-3">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="font-mono text-[#D4A853]">FOLD 1 · SESSION NATAL</span>
-                <span className="font-mono tabular-nums text-[#8E95A5]">Active</span>
-              </div>
-              <p className="text-xs text-[#C8CEDB] mt-1">
-                {activeProfile.name} · D1–D144 + SAV ({parsedNatal.savTotal})
-              </p>
-            </div>
-
-            <div className="bg-[#111318] border border-[#262A34] rounded-lg p-3">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="font-mono text-[#D4A853]">FOLD 2 · NARRATIVE + CARDS</span>
-                <span className="font-mono tabular-nums text-[#8E95A5]">
-                  {activeThread.cards.length} cards
-                </span>
-              </div>
-              <p className="text-xs text-[#C8CEDB] mt-1">
-                {isNarrativeValid
-                  ? formatMonthRangeLabel(
-                      activeThread.narrativeWindow.startMonth,
-                      activeThread.narrativeWindow.endMonth
-                    )
-                  : activeThread.narrativeWindow.startMonth}
-              </p>
-              {activeThread.cards.length > 0 && (
-                <div className="mt-2 space-y-1 border-t border-[#262A34] pt-2">
-                  {activeThread.cards.map((c, i) => (
-                    <div key={c.id} className="text-[11px] text-[#8E95A5] truncate">
-                      <span className="font-mono text-[#D4A853]">#{i + 1}</span> {c.domain} ·{' '}
-                      {c.title}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="bg-[#111318] border border-[#262A34] rounded-lg p-3">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="font-mono text-[#D4A853]">FOLD 3 · TARGET FUTURE</span>
-                <span className="font-mono tabular-nums text-[#8E95A5]">
-                  {activeThread.submittedAt ? 'Unfolded' : 'Ready'}
-                </span>
-              </div>
-              <p className="text-xs text-[#C8CEDB] mt-1">
-                {isFutureValid
-                  ? formatMonthRangeLabel(
-                      activeThread.futureWindow.startMonth,
-                      activeThread.futureWindow.endMonth
-                    )
-                  : activeThread.futureWindow.startMonth}
-              </p>
-            </div>
-          </div>
-        </aside>
-      )}
-
       {modalMode && (
         <NatalConfigModal
           isOpen={Boolean(modalMode)}
           mode={modalMode}
-          profile={activeProfile}
+          profile={activeProfile || undefined}
           apiConfig={apiConfig}
           onClose={() => setModalMode(null)}
           onSave={handleSaveProfileModal}
+          onDelete={handleDeleteProfile}
         />
       )}
     </div>
