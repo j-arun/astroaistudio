@@ -208,7 +208,9 @@ function readJsonFile<T>(filePath: string, fallback: T): T {
 
 function writeJsonFile<T>(filePath: string, data: T): void {
   ensureDataDir();
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf-8');
+  fs.renameSync(tempPath, filePath);
 }
 
 function getAiClient(): GoogleGenAI | null {
@@ -810,7 +812,7 @@ function buildPlainTextFallbackReading(
 
 async function startServer() {
   const app = express();
-  app.use(express.json({ limit: '4mb' }));
+  app.use(express.json({ limit: '10mb' }));
 
   app.get('/api/profiles', (_req, res) => {
     const profiles = readJsonFile(PROFILES_FILE, null);

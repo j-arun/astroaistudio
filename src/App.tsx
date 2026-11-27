@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   Check,
@@ -41,6 +41,9 @@ import { getCardTheme } from './data/cardThemes';
 const STORAGE_PROFILES_KEY = 'astro_studio_profiles_v2';
 const STORAGE_THREADS_KEY = 'astro_studio_threads_v2';
 const STORAGE_CONFIG_KEY = 'astro_studio_config_v2';
+const STORAGE_ACTIVE_PROFILE_KEY = 'astro_studio_active_profile_v1';
+const STORAGE_ACTIVE_THREAD_KEY = 'astro_studio_active_thread_v1';
+const STORAGE_DRAFT_STATE_KEY = 'astro_studio_draft_state_v1';
 
 const LEGACY_SEEDED_IDS = new Set(['profile-arun', 'profile-meera']);
 
@@ -69,6 +72,7 @@ function createInitialDraftThread(profile: AstroProfile | null): AstroThread {
   return {
     id: `thread-${Date.now()}`,
     profileId: profile?.id || '',
+    personId: profile?.personId || undefined,
     title: 'New Thread',
     createdAt: new Date().toISOString(),
     step: 'narrative',
@@ -87,6 +91,115 @@ function createInitialDraftThread(profile: AstroProfile | null): AstroThread {
   };
 }
 
+function deriveThreadSubjectTitle(thread: Pick<AstroThread, 'title' | 'cards' | 'narrativeWindow' | 'futureWindow'>): string {
+  const cardSubjects = (thread.cards || [])
+    .map((c) => (typeof c.title === 'string' ? c.title.trim() : ''))
+    .filter(Boolean);
+  if (cardSubjects.length > 0) {
+    return cardSubjects.join(' · ');
+  }
+  const existing = typeof thread.title === 'string' ? thread.title.trim() : '';
+  if (existing && existing !== 'New Thread') {
+    return existing;
+  }
+  return 'New Thread';
+}
+
+function normalizeThread(thread: AstroThread): AstroThread {
+  const currentTitle = typeof thread.title === 'string' ? thread.title.trim() : '';
+  const hasCardSubject = Boolean(thread.cards?.some((c) => typeof c.title === 'string' && c.title.trim()));
+  const looksAutoOrBlank =
+    !currentTitle || currentTitle === 'New Thread' || currentTitle.includes(' → ');
+  const resolvedTitle =
+    hasCardSubject && looksAutoOrBlank
+      ? deriveThreadSubjectTitle(thread)
+      : currentTitle || deriveThreadSubjectTitle(thread);
+  const hasReading = Boolean(
+    thread.overallSynthesis ||
+      thread.privateOverallSynthesis ||
+      thread.cards?.some((c) => Boolean(c.reading || c.privateReading)) ||
+      (thread.messages && thread.messages.length > 0)
+  );
+  return {
+    ...thread,
+    title: resolvedTitle,
+    step: thread.step === 'reading' || hasReading ? 'reading' : 'narrative',
+    cards: Array.isArray(thread.cards) ? thread.cards : [],
+    messages: Array.isArray(thread.messages) ? thread.messages : [],
+  };
+}
+
+function scoreThreadCompleteness(t: AstroThread): number {
+  let score = 0;
+  if (t.step === 'reading') score += 20;
+  if (t.overallSynthesis) score += 10;
+  if (t.privateOverallSynthesis) score += 10;
+  for (const c of t.cards || []) {
+    score += 5;
+    if (c.reading) score += 25;
+    if (c.reading?.grahaTimeline?.factors?.length) score += 20;
+    if (c.privateReading) score += 25;
+    if (c.privateReading?.grahaTimeline?.factors?.length) score += 20;
+  }
+  score += (t.messages?.length || 0) * 6;
+  return score;
+}
+
+function getThreadTimestampMs(t: AstroThread): number {
+  const iso = t.updatedAt || t.submittedAt || t.createdAt;
+  const ms = Date.parse(iso || '');
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function mergeThreadCollections(
+  serverThreads: AstroThread[],
+  localThreads: AstroThread[]
+): AstroThread[] {
+  const byId = new Map<string, AstroThread>();
+  for (const raw of [...serverThreads, ...localThreads]) {
+    if (!raw || !raw.id || LEGACY_SEEDED_IDS.has(raw.profileId)) continue;
+    const candidate = normalizeThread(raw);
+    const existing = byId.get(candidate.id);
+    if (!existing) {
+      byId.set(candidate.id, candidate);
+      continue;
+    }
+    const existingScore = scoreThreadCompleteness(existing);
+    const candidateScore = scoreThreadCompleteness(candidate);
+    if (
+      candidateScore > existingScore ||
+      (candidateScore === existingScore &&
+        getThreadTimestampMs(candidate) >= getThreadTimestampMs(existing))
+    ) {
+      byId.set(candidate.id, candidate);
+    }
+  }
+  return Array.from(byId.values()).sort(
+    (a, b) => getThreadTimestampMs(b) - getThreadTimestampMs(a)
+  );
+}
+
+function mergeProfileCollections(
+  serverProfiles: AstroProfile[],
+  localProfiles: AstroProfile[]
+): AstroProfile[] {
+  const byId = new Map<string, AstroProfile>();
+  for (const p of [...serverProfiles, ...localProfiles]) {
+    if (!p || !p.id || LEGACY_SEEDED_IDS.has(p.id)) continue;
+    const existing = byId.get(p.id);
+    if (!existing) {
+      byId.set(p.id, p);
+      continue;
+    }
+    const existingMs = Date.parse(existing.updatedAt || '') || 0;
+    const candidateMs = Date.parse(p.updatedAt || '') || 0;
+    if (candidateMs >= existingMs) {
+      byId.set(p.id, p);
+    }
+  }
+  return Array.from(byId.values());
+}
+
 export default function App() {
   const [profiles, setProfiles] = useState<AstroProfile[]>(DEFAULT_PROFILES);
   const [activeProfileId, setActiveProfileId] = useState<string>('');
@@ -95,6 +208,9 @@ export default function App() {
   const [activeThread, setActiveThread] = useState<AstroThread>(() =>
     createInitialDraftThread(null)
   );
+  const savedThreadsRef = useRef<AstroThread[]>([]);
+  const profilesRef = useRef<AstroProfile[]>(DEFAULT_PROFILES);
+  const hasHydratedRef = useRef(false);
 
   // Sequential step gating inside a New Thread:
   // 1) Set Past Narrative Period -> 2) Set Future Target Period -> 3) Magic Card (1 per thread)
@@ -174,8 +290,10 @@ export default function App() {
 
   useEffect(() => {
     const loadInitialData = async () => {
-      let loadedProfiles: AstroProfile[] | null = null;
-      let loadedThreads: AstroThread[] | null = null;
+      let serverProfiles: AstroProfile[] = [];
+      let serverThreads: AstroThread[] = [];
+      let localProfiles: AstroProfile[] = [];
+      let localThreads: AstroThread[] = [];
       let loadedConfig: Partial<StudioApiConfig> | null = null;
 
       try {
@@ -186,11 +304,11 @@ export default function App() {
         ]);
         if (pRes.ok) {
           const pData = await pRes.json();
-          if (Array.isArray(pData.profiles)) loadedProfiles = pData.profiles;
+          if (Array.isArray(pData.profiles)) serverProfiles = pData.profiles;
         }
         if (tRes.ok) {
           const tData = await tRes.json();
-          if (Array.isArray(tData.threads)) loadedThreads = tData.threads;
+          if (Array.isArray(tData.threads)) serverThreads = tData.threads;
         }
         if (cRes.ok) {
           const cData = await cRes.json();
@@ -200,22 +318,24 @@ export default function App() {
         // Fallback to localStorage below
       }
 
-      if (!loadedProfiles) {
-        try {
-          const localP = localStorage.getItem(STORAGE_PROFILES_KEY);
-          if (localP) loadedProfiles = JSON.parse(localP);
-        } catch {
-          // ignore
+      try {
+        const localP = localStorage.getItem(STORAGE_PROFILES_KEY);
+        if (localP) {
+          const parsedP = JSON.parse(localP);
+          if (Array.isArray(parsedP)) localProfiles = parsedP;
         }
+      } catch {
+        // ignore
       }
 
-      if (!loadedThreads) {
-        try {
-          const localT = localStorage.getItem(STORAGE_THREADS_KEY);
-          if (localT) loadedThreads = JSON.parse(localT);
-        } catch {
-          // ignore
+      try {
+        const localT = localStorage.getItem(STORAGE_THREADS_KEY);
+        if (localT) {
+          const parsedT = JSON.parse(localT);
+          if (Array.isArray(parsedT)) localThreads = parsedT;
         }
+      } catch {
+        // ignore
       }
 
       if (!loadedConfig) {
@@ -227,26 +347,143 @@ export default function App() {
         }
       }
 
-      const cleanedProfiles = (loadedProfiles || []).filter(
-        (p) => !LEGACY_SEEDED_IDS.has(p.id)
-      );
+      const cleanedProfiles = mergeProfileCollections(serverProfiles, localProfiles);
+      profilesRef.current = cleanedProfiles;
       setProfiles(cleanedProfiles);
-      const firstProfile = cleanedProfiles[0] || null;
-      setActiveProfileId(firstProfile?.id || '');
-      setActiveThread(createInitialDraftThread(firstProfile));
 
-      if (loadedThreads) {
-        setSavedThreads(
-          loadedThreads.filter((t) => !LEGACY_SEEDED_IDS.has(t.profileId))
-        );
+      const mergedThreads = mergeThreadCollections(serverThreads, localThreads);
+      savedThreadsRef.current = mergedThreads;
+      setSavedThreads(mergedThreads);
+
+      // Keep server and localStorage synchronized with merged collections
+      try {
+        localStorage.setItem(STORAGE_PROFILES_KEY, JSON.stringify(cleanedProfiles));
+        if (cleanedProfiles.length > serverProfiles.length) {
+          void fetch('/api/profiles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profiles: cleanedProfiles }),
+          });
+        }
+      } catch {
+        // ignore
       }
+
+      try {
+        localStorage.setItem(STORAGE_THREADS_KEY, JSON.stringify(mergedThreads));
+        const serverSerialized = JSON.stringify(serverThreads);
+        const mergedSerialized = JSON.stringify(mergedThreads);
+        if (mergedThreads.length > 0 && serverSerialized !== mergedSerialized) {
+          void fetch('/api/threads', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ threads: mergedThreads }),
+          });
+        }
+      } catch {
+        // ignore
+      }
+
+      let rememberedProfileId = '';
+      let rememberedThreadId = '';
+      try {
+        rememberedProfileId = localStorage.getItem(STORAGE_ACTIVE_PROFILE_KEY) || '';
+        rememberedThreadId = localStorage.getItem(STORAGE_ACTIVE_THREAD_KEY) || '';
+      } catch {
+        // ignore
+      }
+
+      const selectedProfile =
+        cleanedProfiles.find((p) => p.id === rememberedProfileId) ||
+        cleanedProfiles[0] ||
+        null;
+      setActiveProfileId(selectedProfile?.id || '');
+
+      const matchedSavedThread = rememberedThreadId
+        ? mergedThreads.find((t) => t.id === rememberedThreadId)
+        : undefined;
+
+      if (matchedSavedThread) {
+        setActiveThread(matchedSavedThread);
+        setPastSet(true);
+        setFutureSet(
+          matchedSavedThread.step === 'reading' ||
+            matchedSavedThread.cards.length > 0 ||
+            Boolean(matchedSavedThread.futureWindow?.transitDump)
+        );
+      } else {
+        let restoredDraft = false;
+        try {
+          const rawDraft = localStorage.getItem(STORAGE_DRAFT_STATE_KEY);
+          if (rawDraft) {
+            const parsedDraft = JSON.parse(rawDraft) as {
+              thread?: AstroThread;
+              pastSet?: boolean;
+              futureSet?: boolean;
+            };
+            if (
+              parsedDraft?.thread &&
+              (!selectedProfile ||
+                !parsedDraft.thread.profileId ||
+                parsedDraft.thread.profileId === selectedProfile.id)
+            ) {
+              setActiveThread(normalizeThread(parsedDraft.thread));
+              setPastSet(Boolean(parsedDraft.pastSet));
+              setFutureSet(Boolean(parsedDraft.futureSet));
+              restoredDraft = true;
+            }
+          }
+        } catch {
+          // ignore
+        }
+
+        if (!restoredDraft) {
+          setActiveThread(createInitialDraftThread(selectedProfile));
+          setPastSet(false);
+          setFutureSet(false);
+        }
+      }
+
       if (loadedConfig) {
         setApiConfig({ ...DEFAULT_API_CONFIG, ...loadedConfig });
       }
+      hasHydratedRef.current = true;
     };
 
     loadInitialData();
   }, []);
+
+  useEffect(() => {
+    if (!hasHydratedRef.current) return;
+    try {
+      if (activeProfileId) {
+        localStorage.setItem(STORAGE_ACTIVE_PROFILE_KEY, activeProfileId);
+      } else {
+        localStorage.removeItem(STORAGE_ACTIVE_PROFILE_KEY);
+      }
+    } catch {
+      // ignore
+    }
+  }, [activeProfileId]);
+
+  useEffect(() => {
+    if (!hasHydratedRef.current) return;
+    try {
+      if (activeThread?.id) {
+        localStorage.setItem(STORAGE_ACTIVE_THREAD_KEY, activeThread.id);
+      }
+      localStorage.setItem(
+        STORAGE_DRAFT_STATE_KEY,
+        JSON.stringify({
+          thread: activeThread,
+          pastSet,
+          futureSet,
+        })
+      );
+    } catch {
+      // ignore
+    }
+  }, [activeThread, pastSet, futureSet]);
 
   const activeProfile = useMemo(
     () => profiles.find((p) => p.id === activeProfileId) || null,
@@ -261,13 +498,22 @@ export default function App() {
     [activeProfile]
   );
 
-  const profileThreads = useMemo(
-    () =>
-      activeProfile
-        ? savedThreads.filter((t) => t.profileId === activeProfile.id)
-        : [],
-    [savedThreads, activeProfile]
-  );
+  const profileThreads = useMemo(() => {
+    if (!activeProfile) return savedThreads;
+    const knownProfileIds = new Set(profiles.map((p) => p.id));
+    const activePidUpper = (activeProfile.personId || '').trim().toUpperCase();
+    return savedThreads.filter(
+      (t) =>
+        t.profileId === activeProfile.id ||
+        Boolean(
+          activePidUpper &&
+            t.personId &&
+            t.personId.trim().toUpperCase() === activePidUpper
+        ) ||
+        !t.profileId ||
+        !knownProfileIds.has(t.profileId)
+    );
+  }, [savedThreads, activeProfile, profiles]);
 
   const fullConsultingPrompt = useMemo(() => {
     if (!activeProfile) return null;
@@ -323,6 +569,7 @@ export default function App() {
   };
 
   const persistProfiles = async (nextProfiles: AstroProfile[]) => {
+    profilesRef.current = nextProfiles;
     setProfiles(nextProfiles);
     try {
       localStorage.setItem(STORAGE_PROFILES_KEY, JSON.stringify(nextProfiles));
@@ -330,13 +577,20 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ profiles: nextProfiles }),
+        keepalive: true,
       });
     } catch {
       // local state updated
     }
   };
 
-  const persistThreads = async (nextThreads: AstroThread[]) => {
+  const persistThreads = async (
+    updater: AstroThread[] | ((prev: AstroThread[]) => AstroThread[])
+  ) => {
+    const base = savedThreadsRef.current;
+    const rawNext = typeof updater === 'function' ? updater(base) : updater;
+    const nextThreads = rawNext.map(normalizeThread);
+    savedThreadsRef.current = nextThreads;
     setSavedThreads(nextThreads);
     try {
       localStorage.setItem(STORAGE_THREADS_KEY, JSON.stringify(nextThreads));
@@ -344,10 +598,24 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ threads: nextThreads }),
+        keepalive: true,
       });
     } catch {
       // local state updated
     }
+  };
+
+  const upsertSavedThread = (thread: AstroThread, profileOverride?: AstroProfile | null): AstroThread => {
+    const prof = profileOverride !== undefined ? profileOverride : activeProfile;
+    const stamped: AstroThread = normalizeThread({
+      ...thread,
+      profileId: thread.profileId || prof?.id || '',
+      personId: thread.personId || prof?.personId || undefined,
+      title: deriveThreadSubjectTitle(thread),
+      updatedAt: new Date().toISOString(),
+    });
+    void persistThreads((prev) => [stamped, ...prev.filter((t) => t.id !== stamped.id)]);
+    return stamped;
   };
 
   const persistConfig = async (nextConfig: StudioApiConfig) => {
@@ -397,10 +665,10 @@ export default function App() {
   };
 
   const handleDeleteProfile = (profileId: string) => {
-    const remaining = profiles.filter((p) => p.id !== profileId);
-    const remainingThreads = savedThreads.filter((t) => t.profileId !== profileId);
-    persistProfiles(remaining);
-    persistThreads(remainingThreads);
+    const remaining = profilesRef.current.filter((p) => p.id !== profileId);
+    const remainingThreads = savedThreadsRef.current.filter((t) => t.profileId !== profileId);
+    void persistProfiles(remaining);
+    void persistThreads(remainingThreads);
     setProfileMenuOpen(false);
 
     if (activeProfileId === profileId) {
@@ -419,9 +687,22 @@ export default function App() {
   };
 
   const handleSelectSavedThread = (thread: AstroThread) => {
-    setActiveThread({ ...thread, step: 'reading' });
+    const normalized = normalizeThread(thread);
+    const hasReading =
+      normalized.step === 'reading' ||
+      Boolean(normalized.overallSynthesis || normalized.privateOverallSynthesis) ||
+      normalized.cards.some((c) => Boolean(c.reading || c.privateReading)) ||
+      normalized.messages.length > 0;
+    setActiveThread({
+      ...normalized,
+      step: hasReading ? 'reading' : 'narrative',
+    });
     setPastSet(true);
-    setFutureSet(true);
+    setFutureSet(
+      hasReading ||
+        normalized.cards.length > 0 ||
+        Boolean(normalized.futureWindow?.transitDump)
+    );
     setAnalyzeError(null);
     setTimelineBuildError(null);
     setPrivateLlmError(null);
@@ -432,8 +713,7 @@ export default function App() {
 
   const handleDeleteThread = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    const next = savedThreads.filter((t) => t.id !== id);
-    persistThreads(next);
+    void persistThreads((prev) => prev.filter((t) => t.id !== id));
     if (activeThread.id === id) {
       handleStartNewThread();
     }
@@ -484,6 +764,8 @@ export default function App() {
     const fromLabel = formatYearMonthToLongLabel(win.startMonth);
     const toLabel = formatYearMonthToLongLabel(win.endMonth);
 
+    let resolvedDump = win.transitDump;
+
     // If Base API URL is configured, call GET /api/transit/dump?personId=...&from=...&to=...
     if (apiConfig.baseApiUrl.trim()) {
       const personId = (activeProfile.personId || '').trim().toUpperCase();
@@ -519,8 +801,7 @@ export default function App() {
           throw new Error(data.error || `Failed to fetch ${mode} transit dump.`);
         }
         if (typeof data.text === 'string') {
-          if (mode === 'past') updateNarrativeWindow({ transitDump: data.text });
-          else updateFutureWindow({ transitDump: data.text });
+          resolvedDump = data.text;
         }
       } catch (err: unknown) {
         setTimelineError(
@@ -535,14 +816,30 @@ export default function App() {
       }
     } else {
       // Update window label cleanly when no external API URL is set
-      const labelDump = buildSampleTransitDump(
+      resolvedDump = buildSampleTransitDump(
         win.startMonth,
         win.endMonth,
         parsedNatal?.moonSign || 'Moon Sign',
         mode === 'future'
       );
-      if (mode === 'past') updateNarrativeWindow({ transitDump: labelDump });
-      else updateFutureWindow({ transitDump: labelDump });
+    }
+
+    const updatedThread: AstroThread =
+      mode === 'past'
+        ? {
+            ...activeThread,
+            narrativeWindow: { ...activeThread.narrativeWindow, transitDump: resolvedDump },
+            updatedAt: new Date().toISOString(),
+          }
+        : {
+            ...activeThread,
+            futureWindow: { ...activeThread.futureWindow, transitDump: resolvedDump },
+            updatedAt: new Date().toISOString(),
+          };
+    setActiveThread(updatedThread);
+
+    if (savedThreadsRef.current.some((t) => t.id === updatedThread.id)) {
+      upsertSavedThread(updatedThread, activeProfile);
     }
 
     if (mode === 'past') setPastSet(true);
@@ -557,6 +854,17 @@ export default function App() {
     setIsAnalyzing(true);
     setAnalyzeError(null);
 
+    const subjectTitle = deriveThreadSubjectTitle(activeThread);
+    const stagedThread: AstroThread = {
+      ...activeThread,
+      profileId: activeProfile.id,
+      personId: activeProfile.personId,
+      title: subjectTitle,
+      updatedAt: new Date().toISOString(),
+    };
+    setActiveThread(stagedThread);
+    upsertSavedThread(stagedThread, activeProfile);
+
     try {
       const res = await fetch('/api/astro/analyze', {
         method: 'POST',
@@ -564,9 +872,9 @@ export default function App() {
         body: JSON.stringify({
           profileName: activeProfile.name,
           natalDump: activeProfile.natalDump,
-          narrativeWindow: activeThread.narrativeWindow,
-          cards: activeThread.cards,
-          futureWindow: activeThread.futureWindow,
+          narrativeWindow: stagedThread.narrativeWindow,
+          cards: stagedThread.cards,
+          futureWindow: stagedThread.futureWindow,
           llmConfig: {
             llmProvider: apiConfig.llmProvider,
             geminiModel: apiConfig.geminiModel,
@@ -604,7 +912,7 @@ export default function App() {
         }
       }
 
-      const enrichedCards: MagicCard[] = activeThread.cards.map((c, idx) => ({
+      const enrichedCards: MagicCard[] = stagedThread.cards.map((c, idx) => ({
         ...c,
         reading:
           readingsMap.get(c.id) ||
@@ -618,16 +926,25 @@ export default function App() {
             : undefined),
       }));
 
-      const autoTitle = `${formatMonthRangeLabel(
-        activeThread.narrativeWindow.startMonth,
-        activeThread.narrativeWindow.endMonth
+      const fallbackDateTitle = `${formatMonthRangeLabel(
+        stagedThread.narrativeWindow.startMonth,
+        stagedThread.narrativeWindow.endMonth
       )} → ${formatMonthRangeLabel(
-        activeThread.futureWindow.startMonth,
-        activeThread.futureWindow.endMonth
+        stagedThread.futureWindow.startMonth,
+        stagedThread.futureWindow.endMonth
       )} · ${enrichedCards
         .map((c) => c.domain)
         .slice(0, 2)
         .join(' & ')}`;
+
+      const finalSubjectTitle =
+        enrichedCards
+          .map((c) => c.title.trim())
+          .filter(Boolean)
+          .join(' · ') ||
+        (stagedThread.title && stagedThread.title !== 'New Thread'
+          ? stagedThread.title
+          : fallbackDateTitle);
 
       const resolvedPrimaryModel =
         apiConfig.llmProvider === 'fable'
@@ -637,10 +954,12 @@ export default function App() {
           : apiConfig.geminiModel?.trim() || 'gemini-4-hydrogen';
 
       const completedThread: AstroThread = {
-        ...activeThread,
+        ...stagedThread,
         profileId: activeProfile.id,
-        title: autoTitle,
+        personId: activeProfile.personId,
+        title: finalSubjectTitle,
         submittedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         step: 'reading',
         primaryProvider: apiConfig.llmProvider,
         primaryModel: resolvedPrimaryModel,
@@ -649,8 +968,7 @@ export default function App() {
       };
 
       setActiveThread(completedThread);
-      const withoutDup = savedThreads.filter((t) => t.id !== completedThread.id);
-      persistThreads([completedThread, ...withoutDup]);
+      upsertSavedThread(completedThread, activeProfile);
     } catch (err: unknown) {
       setAnalyzeError(
         err instanceof Error ? err.message : 'Unable to unfold readings. Please try again.'
@@ -670,6 +988,7 @@ export default function App() {
   ) => {
     const attach = (thread: AstroThread): AstroThread => ({
       ...thread,
+      updatedAt: new Date().toISOString(),
       cards: thread.cards.map((c) => {
         if (c.id !== targetCardId) return c;
         if (sourceTab === 'private' && c.privateReading) {
@@ -695,24 +1014,13 @@ export default function App() {
     });
 
     setActiveThread((prev) => (prev.id === targetThreadId ? attach(prev) : prev));
-    setSavedThreads((prevThreads) => {
+    void persistThreads((prevThreads) => {
       const exists = prevThreads.some((t) => t.id === targetThreadId);
-      const nextThreads = exists
+      return exists
         ? prevThreads.map((t) => (t.id === targetThreadId ? attach(t) : t))
         : fallbackThread
         ? [attach(fallbackThread), ...prevThreads]
         : prevThreads;
-      try {
-        localStorage.setItem(STORAGE_THREADS_KEY, JSON.stringify(nextThreads));
-        void fetch('/api/threads', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ threads: nextThreads }),
-        });
-      } catch {
-        // local state updated
-      }
-      return nextThreads;
     });
   };
 
@@ -861,17 +1169,16 @@ export default function App() {
 
       const updatedThread: AstroThread = {
         ...activeThread,
+        profileId: activeProfile.id,
+        personId: activeProfile.personId,
         cards: updatedCards,
         privateOverallSynthesis: data.overallSynthesis || '',
         privateModel: apiConfig.ollamaModel || 'ollama',
+        updatedAt: new Date().toISOString(),
       };
 
       setActiveThread(updatedThread);
-      const nextSaved = savedThreads.map((t) => (t.id === updatedThread.id ? updatedThread : t));
-      if (!savedThreads.some((t) => t.id === updatedThread.id)) {
-        nextSaved.unshift(updatedThread);
-      }
-      persistThreads(nextSaved);
+      upsertSavedThread(updatedThread, activeProfile);
     } catch (err: unknown) {
       setPrivateLlmError(
         err instanceof Error ? err.message : 'Unable to reach Private LLM (Ollama).'
@@ -949,6 +1256,9 @@ export default function App() {
 
     const updatedThread: AstroThread = {
       ...activeThread,
+      profileId: activeProfile.id,
+      personId: activeProfile.personId,
+      updatedAt: new Date().toISOString(),
       futureWindow: {
         startMonth,
         endMonth,
@@ -957,11 +1267,7 @@ export default function App() {
     };
 
     setActiveThread(updatedThread);
-    const nextSaved = savedThreads.map((t) => (t.id === updatedThread.id ? updatedThread : t));
-    if (!savedThreads.some((t) => t.id === updatedThread.id)) {
-      nextSaved.unshift(updatedThread);
-    }
-    persistThreads(nextSaved);
+    upsertSavedThread(updatedThread, activeProfile);
     return true;
   };
 
@@ -977,12 +1283,12 @@ export default function App() {
       cards: cleanedCards,
       privateOverallSynthesis: undefined,
       privateModel: undefined,
+      updatedAt: new Date().toISOString(),
     };
 
     setPrivateLlmError(null);
     setActiveThread(updatedThread);
-    const nextSaved = savedThreads.map((t) => (t.id === updatedThread.id ? updatedThread : t));
-    persistThreads(nextSaved);
+    upsertSavedThread(updatedThread, activeProfile);
   };
 
   // Persistent 3-Fold Thread Follow-Up Chat (supports both fresh send and retry with full prompt)
@@ -1037,15 +1343,14 @@ export default function App() {
 
       const finalThread: AstroThread = {
         ...activeThread,
+        profileId: activeProfile.id,
+        personId: activeProfile.personId,
         messages: [...displayMessages, aiMsg],
+        updatedAt: new Date().toISOString(),
       };
 
       setActiveThread(finalThread);
-      const nextSaved = savedThreads.map((t) => (t.id === finalThread.id ? finalThread : t));
-      if (!savedThreads.some((t) => t.id === finalThread.id)) {
-        nextSaved.unshift(finalThread);
-      }
-      persistThreads(nextSaved);
+      upsertSavedThread(finalThread, activeProfile);
     } catch (err: unknown) {
       setChatError(err instanceof Error ? err.message : 'Unable to send follow-up message.');
       setFailedChatRequest({
@@ -1076,10 +1381,15 @@ export default function App() {
       : activeThread.messages;
     const displayMessages = [...baseHistory, userMsg];
 
-    setActiveThread((prev) => ({
-      ...prev,
+    const updatedWithUserMsg: AstroThread = {
+      ...activeThread,
+      profileId: activeProfile.id,
+      personId: activeProfile.personId,
       messages: displayMessages,
-    }));
+      updatedAt: new Date().toISOString(),
+    };
+    setActiveThread(updatedWithUserMsg);
+    upsertSavedThread(updatedWithUserMsg, activeProfile);
 
     await executeFollowUpChat(
       userMessage,
@@ -1385,6 +1695,12 @@ export default function App() {
                     <span className="text-[#D4A853]/80">
                       {t.cards.length} {t.cards.length === 1 ? 'card' : 'cards'}
                     </span>
+                    {t.step === 'narrative' && (
+                      <>
+                        <span>·</span>
+                        <span className="text-[#8E95A5]">Draft</span>
+                      </>
+                    )}
                   </div>
                 </div>
               );
@@ -1430,6 +1746,8 @@ export default function App() {
             {activeProfile
               ? activeThread.step === 'reading'
                 ? activeThread.title
+                : activeThread.title && activeThread.title !== 'New Thread'
+                ? `${activeProfile.name} (${activeProfile.personId}) · ${activeThread.title}`
                 : `${activeProfile.name} (${activeProfile.personId})`
               : 'Profile Setup Required'}
           </span>
@@ -1768,9 +2086,38 @@ export default function App() {
                       isFutureValid={isFutureValid}
                       isSubmitting={isAnalyzing}
                       cards={activeThread.cards}
-                      onChangeCards={(cards) =>
-                        setActiveThread((prev) => ({ ...prev, cards }))
-                      }
+                      onDraftTitleChange={(draftTitle) => {
+                        const cleanTitle = draftTitle.trim() || 'New Thread';
+                        setActiveThread((prev) => {
+                          if (prev.cards.length > 0 && prev.cards[0].title.trim()) {
+                            return prev;
+                          }
+                          return {
+                            ...prev,
+                            title: cleanTitle,
+                            updatedAt: new Date().toISOString(),
+                          };
+                        });
+                      }}
+                      onChangeCards={(cards) => {
+                        const nextTitle =
+                          cards
+                            .map((c) => c.title.trim())
+                            .filter(Boolean)
+                            .join(' · ') || 'New Thread';
+                        const updated: AstroThread = {
+                          ...activeThread,
+                          profileId: activeProfile?.id || activeThread.profileId,
+                          personId: activeProfile?.personId || activeThread.personId,
+                          cards,
+                          title: nextTitle,
+                          updatedAt: new Date().toISOString(),
+                        };
+                        setActiveThread(updated);
+                        if (cards.length > 0 || savedThreadsRef.current.some((t) => t.id === updated.id)) {
+                          upsertSavedThread(updated, activeProfile);
+                        }
+                      }}
                       onSubmitThread={handleSubmitThread}
                     />
                   </div>

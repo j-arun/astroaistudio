@@ -24,6 +24,7 @@ interface MagicCardDeckProps {
   isSubmitting: boolean;
   cards: MagicCard[];
   onChangeCards: (cards: MagicCard[]) => void;
+  onDraftTitleChange?: (draftTitle: string) => void;
   onSubmitThread: () => void;
 }
 
@@ -45,6 +46,7 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
   isSubmitting,
   cards,
   onChangeCards,
+  onDraftTitleChange,
   onSubmitThread,
 }) => {
   const bounds = isRangeValid
@@ -108,7 +110,7 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
       return;
     }
     if (!title.trim() || !narrative.trim()) {
-      setErrorMsg('Enter an event name and brief narrative before flipping the card.');
+      setErrorMsg('Enter a subject name and brief narrative before flipping the card.');
       return;
     }
     const dateErr = validateTypedDate(eventDate);
@@ -283,12 +285,16 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="sm:col-span-2">
                       <label className="block text-xs font-medium text-white/70 mb-1.5">
-                        Event Name
+                        Subject Name
                       </label>
                       <input
                         type="text"
                         value={title}
-                        onChange={(e) => setTitle(e.target.value)}
+                        onChange={(e) => {
+                          const nextVal = e.target.value;
+                          setTitle(nextVal);
+                          onDraftTitleChange?.(nextVal);
+                        }}
                         placeholder="e.g., Saw crush at cafe / Bonus approval / Exam"
                         className={`w-full bg-white/[0.04] backdrop-blur-md border border-white/10 ${activeTheme.focusBorderClass} rounded-lg px-3 py-2 text-xs text-[#EDEFF5] placeholder-white/30 outline-none transition-colors`}
                       />

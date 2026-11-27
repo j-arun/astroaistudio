@@ -138,8 +138,10 @@ export interface ThreadMessage {
 export interface AstroThread {
   id: string;
   profileId: string;
+  personId?: string;
   title: string;
   createdAt: string;
+  updatedAt?: string;
   submittedAt?: string;
   step: ThreadStep;
   primaryProvider?: LlmProvider;
