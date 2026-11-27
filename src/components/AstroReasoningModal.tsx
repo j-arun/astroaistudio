@@ -862,11 +862,11 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h4 className="text-sm font-semibold text-[#ece6dc]">
-                        2D Timeline Plot Data Not Ready
+                        2D Timeline Graph Not Generated Yet
                       </h4>
                       <p className="text-xs text-[#a39a8e] mt-0.5">
                         {timelineError ||
-                          'Trigger Request 2 extraction or paste plot JSON via Load JSON.'}
+                          `Your Request 1 reasoning text is ready below. Press "Visualize 2D Graph" only if you want to send Request 2 to ${engineLabel} to plot the animation, or paste JSON via Load JSON.`}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -876,7 +876,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
                         className="px-3.5 py-1.5 rounded-lg bg-[#D4A853] hover:bg-[#DFB96B] text-[#111318] text-xs font-semibold inline-flex items-center gap-1.5"
                       >
                         <RotateCw className="w-3.5 h-3.5" />
-                        <span>Build 2D Animation Data</span>
+                        <span>Visualize 2D Graph</span>
                       </button>
                       <button
                         type="button"

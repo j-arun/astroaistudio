@@ -503,39 +503,21 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                     </motion.div>
                   </AnimatePresence>
 
-                  {/* Separate Astrological Reasoning Button Below the Reasoning Card (On-Demand Request 2 on Click) */}
+                  {/* Separate Astrological Reasoning Button Below the Reasoning Card (Opens Modal Only — Zero Auto-Requests) */}
                   {activeReading?.planetaryTriggers && (
                     <div className="flex items-center justify-end">
                       <button
                         type="button"
-                        onClick={() => {
-                          setReasoningModalOpen(true);
-                          if (!activeReading.grahaTimeline && !isBuildingTimeline) {
-                            onRetryTimelineBuild(activeCard.id, activeTab);
-                          }
-                        }}
+                        onClick={() => setReasoningModalOpen(true)}
                         title={
-                          isBuildingTimeline
-                            ? `${
-                                activeTab === 'private' ? 'Private LLM' : primaryTabLabel
-                              } is extracting Request 2 animation plot data...`
-                            : activeReading.grahaTimeline
+                          activeReading.grahaTimeline
                             ? 'Open 2D Astrological Reasoning Timeline'
-                            : 'Generate & Open 2D Astrological Reasoning Timeline'
+                            : 'Open Astrological Reasoning (click Visualize 2D Graph inside to plot)'
                         }
                         className="px-4 py-2 rounded-xl border text-xs font-medium inline-flex items-center gap-2 transition-colors backdrop-blur-md border-white/15 bg-white/[0.04] hover:bg-white/[0.08] text-[#D4A853]"
                       >
-                        {isBuildingTimeline ? (
-                          <>
-                            <RotateCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Astrological Reasoning · Building Animation...</span>
-                          </>
-                        ) : (
-                          <>
-                            <BookOpen className="w-3.5 h-3.5" />
-                            <span>Astrological Reasoning — Why This Outlook</span>
-                          </>
-                        )}
+                        <BookOpen className="w-3.5 h-3.5" />
+                        <span>Astrological Reasoning — Why This Outlook</span>
                       </button>
                     </div>
                   )}

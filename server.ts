@@ -1649,6 +1649,25 @@ async function startServer() {
         parsed = parseLooseJson(rawGeminiText);
       }
 
+      // Unwrap nested data/result envelope if returned by adapter
+      if (
+        !('factors' in parsed) &&
+        !('planets' in parsed) &&
+        parsed.data &&
+        typeof parsed.data === 'object' &&
+        !Array.isArray(parsed.data)
+      ) {
+        parsed = parsed.data as Record<string, unknown>;
+      } else if (
+        !('factors' in parsed) &&
+        !('planets' in parsed) &&
+        parsed.result &&
+        typeof parsed.result === 'object' &&
+        !Array.isArray(parsed.result)
+      ) {
+        parsed = parsed.result as Record<string, unknown>;
+      }
+
       const rawWin =
         parsed.window && typeof parsed.window === 'object'
           ? (parsed.window as Record<string, unknown>)
