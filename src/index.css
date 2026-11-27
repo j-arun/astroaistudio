@@ -26,7 +26,17 @@
   }
 
   body {
-    background-color: #111318;
+    background-color: #0b0e14;
+    background-image:
+      radial-gradient(circle at 14% 16%, rgba(56, 189, 248, 0.085), transparent 42%),
+      radial-gradient(circle at 86% 12%, rgba(212, 168, 83, 0.09), transparent 40%),
+      radial-gradient(circle at 72% 88%, rgba(129, 140, 248, 0.075), transparent 46%);
+    background-attachment: fixed;
+    color: #EDEFF5;
+  }
+
+  select option {
+    background-color: #141821;
     color: #EDEFF5;
   }
 
@@ -54,6 +64,27 @@
   transform: rotateY(180deg);
 }
 
+/* Subtle frosted glass utilities */
+.glass-panel {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.055) 0%,
+    rgba(255, 255, 255, 0.025) 100%
+  );
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 18px 44px rgba(0, 0, 0, 0.36);
+}
+
+.glass-surface {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(16px) saturate(135%);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
 /* Subtle custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -65,10 +96,10 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2A2F3B;
+  background: rgba(255, 255, 255, 0.14);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3A4152;
+  background: rgba(255, 255, 255, 0.25);
 }

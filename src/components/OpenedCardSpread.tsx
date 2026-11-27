@@ -233,20 +233,20 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
 
       {/* Private LLM Pending / Error State on Private Tab */}
       {activeTab === 'private' && isPostingToPrivateLlm ? (
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-10 text-center space-y-3">
-          <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl border border-[#D4A853]/40 bg-[#D4A853]/10 text-[#D4A853] mx-auto">
+        <div className="rounded-2xl border border-white/12 bg-white/[0.04] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_18px_44px_rgba(0,0,0,0.38)] p-10 text-center space-y-3">
+          <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl border border-[#D4A853]/40 bg-[#D4A853]/12 text-[#D4A853] mx-auto backdrop-blur-md">
             <Cpu className="w-5 h-5 animate-pulse" />
           </div>
           <h3 className="text-sm font-semibold text-[#EDEFF5]">
             Consulting Private LLM (Ollama)...
           </h3>
-          <p className="text-xs text-[#8E95A5] max-w-md mx-auto leading-relaxed">
+          <p className="text-xs text-[#98A0B2] max-w-md mx-auto leading-relaxed">
             Sending the exact same 3-fold prompt to your Ollama model for {pastLabel} →{' '}
             {futureLabel}.
           </p>
         </div>
       ) : activeTab === 'private' && privateLlmError && !hasPrivateResult ? (
-        <div className="rounded-2xl border border-red-900/50 bg-red-950/25 p-6 space-y-4">
+        <div className="rounded-2xl border border-red-400/30 bg-red-500/10 backdrop-blur-xl p-6 space-y-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
           <div className="space-y-1">
             <h3 className="text-sm font-semibold text-red-200">
               Private LLM (Ollama) Request Failed
@@ -264,7 +264,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('primary')}
-              className="px-3.5 py-1.5 rounded-lg border border-white/15 bg-white/[0.04] hover:bg-white/[0.08] text-xs font-medium text-[#EDEFF5] transition-colors"
+              className="px-3.5 py-1.5 rounded-lg border border-white/15 bg-white/[0.05] hover:bg-white/[0.09] text-xs font-medium text-[#EDEFF5] transition-colors"
             >
               Back to {primaryTabLabel}
             </button>
@@ -273,7 +273,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
       ) : (
         <>
           {/* Macro Realistic Outlook Header */}
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-4 space-y-2">
+          <div className="rounded-2xl border border-white/12 bg-white/[0.04] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_16px_40px_rgba(0,0,0,0.34)] p-4 space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#8E95A5]">
               <div className="flex flex-wrap items-center gap-2 min-w-0">
                 <h2 className="text-sm font-semibold text-[#D4A853]">
@@ -425,7 +425,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                               </button>
                               <div
                                 role="tooltip"
-                                className="pointer-events-none opacity-0 group-hover/priv:opacity-100 transition-opacity duration-150 absolute top-full right-0 mt-1.5 z-30 whitespace-nowrap rounded-md border border-[#2D3240] bg-[#111318] px-2.5 py-1 text-[11px] font-medium text-[#EDEFF5] shadow-lg"
+                                className="pointer-events-none opacity-0 group-hover/priv:opacity-100 transition-opacity duration-150 absolute top-full right-0 mt-1.5 z-30 whitespace-nowrap rounded-lg border border-white/15 bg-[#121620]/90 backdrop-blur-xl px-2.5 py-1 text-[11px] font-medium text-[#EDEFF5] shadow-xl"
                               >
                                 Post this question to private LLM.
                               </div>
@@ -529,14 +529,14 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
       )}
 
       {/* Flowing Thread Follow-Up Conversation */}
-      <div className="rounded-2xl border border-white/10 bg-white/[0.025] backdrop-blur-xl p-5 space-y-4">
+      <div className="rounded-2xl border border-white/12 bg-white/[0.035] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.11),0_16px_42px_rgba(0,0,0,0.34)] p-5 space-y-4">
         <div className="border-b border-white/10 pb-3 flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-sm font-semibold text-[#EDEFF5]">Follow-Up Questions</h3>
 
           <button
             type="button"
             onClick={() => setIsEditingFuture((v) => !v)}
-            className="px-2.5 py-1 rounded-lg border border-[#D4A853]/35 bg-[#D4A853]/10 hover:bg-[#D4A853]/20 text-[11px] font-medium text-[#D4A853] inline-flex items-center gap-1.5 transition-colors"
+            className="px-2.5 py-1 rounded-lg border border-[#D4A853]/40 bg-[#D4A853]/12 hover:bg-[#D4A853]/22 backdrop-blur-md text-[11px] font-medium text-[#D4A853] inline-flex items-center gap-1.5 transition-colors"
           >
             <CalendarClock className="w-3.5 h-3.5" />
             <span>Future: {futureLabel} · Change</span>
@@ -545,20 +545,20 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
 
         {/* Editable Future Target Timeline */}
         {isEditingFuture && (
-          <div className="rounded-xl border border-[#262A34] bg-[#14171E] p-4 space-y-3">
+          <div className="rounded-xl border border-white/12 bg-white/[0.04] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-4 space-y-3">
             <span className="block text-xs font-semibold text-[#EDEFF5]">
               Update Future Target Timeline (1–3 Months)
             </span>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-medium text-[#8E95A5] mb-1">
+                <label className="block text-[11px] font-medium text-[#98A0B2] mb-1">
                   Future From
                 </label>
                 <select
                   value={draftFutureStart}
                   onChange={(e) => setDraftFutureStart(e.target.value)}
-                  className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#EDEFF5] outline-none"
+                  className="w-full bg-white/[0.05] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#EDEFF5] outline-none"
                 >
                   {MONTH_YEAR_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -568,13 +568,13 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block text-[11px] font-medium text-[#8E95A5] mb-1">
+                <label className="block text-[11px] font-medium text-[#98A0B2] mb-1">
                   Future To
                 </label>
                 <select
                   value={draftFutureEnd}
                   onChange={(e) => setDraftFutureEnd(e.target.value)}
-                  className="w-full bg-[#111318] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#EDEFF5] outline-none"
+                  className="w-full bg-white/[0.05] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#EDEFF5] outline-none"
                 >
                   {MONTH_YEAR_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -589,10 +589,10 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
               <p className="text-xs text-red-400">{futureWindowError}</p>
             )}
 
-            <div className="flex items-center justify-between pt-2 border-t border-[#262A34]">
+            <div className="flex items-center justify-between pt-2 border-t border-white/10">
               <span
                 className={`text-xs font-mono tabular-nums ${
-                  isDraftFutureValid ? 'text-[#8E95A5]' : 'text-red-400'
+                  isDraftFutureValid ? 'text-[#98A0B2]' : 'text-red-400'
                 }`}
               >
                 {draftSpanMonths >= 1
@@ -607,7 +607,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                     setDraftFutureStart(thread.futureWindow.startMonth);
                     setDraftFutureEnd(thread.futureWindow.endMonth);
                   }}
-                  className="px-3 py-1.5 rounded-lg border border-[#262A34] text-xs text-[#B9C0D0] hover:text-[#EDEFF5] transition-colors"
+                  className="px-3 py-1.5 rounded-lg border border-white/12 bg-white/[0.04] hover:bg-white/[0.08] text-xs text-[#C8CEDB] hover:text-[#EDEFF5] transition-colors"
                 >
                   Cancel
                 </button>
@@ -626,7 +626,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
 
         <div className="space-y-3">
           {thread.messages.length === 0 ? (
-            <p className="text-xs text-[#8E95A5] py-1">
+            <p className="text-xs text-[#98A0B2] py-1">
               Ask a follow-up about any realistic possibility, timing, or next step for your card.
             </p>
           ) : (
@@ -647,13 +647,13 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-2xl rounded-xl px-4 py-3 text-xs leading-relaxed ${
+                    className={`max-w-2xl rounded-xl px-4 py-3 text-xs leading-relaxed backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.09)] ${
                       msg.role === 'user'
-                        ? 'bg-[#262B38] text-[#EDEFF5] border border-[#353C4E]'
-                        : 'bg-[#111318] text-[#D8DCE6] border border-[#262A34]'
+                        ? 'bg-white/[0.08] text-[#EDEFF5] border border-white/18'
+                        : 'bg-white/[0.04] text-[#D8DCE6] border border-white/10'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-3 text-[11px] text-[#8E95A5] mb-1">
+                    <div className="flex items-center justify-between gap-3 text-[11px] text-[#98A0B2] mb-1">
                       <div className="flex items-center gap-2">
                         <span
                           className={
@@ -693,14 +693,14 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
 
           {isSendingChat && (
             <div className="flex justify-start">
-              <div className="bg-[#111318] border border-[#262A34] rounded-xl px-4 py-3 text-xs text-[#8E95A5]">
+              <div className="bg-white/[0.045] backdrop-blur-xl border border-white/12 rounded-xl px-4 py-3 text-xs text-[#98A0B2]">
                 Evaluating realistic scenarios for your follow-up...
               </div>
             </div>
           )}
 
           {chatError && (
-            <div className="bg-red-950/30 border border-red-900/50 rounded-lg px-3.5 py-2.5 text-xs text-red-300 flex flex-wrap items-center justify-between gap-3">
+            <div className="bg-red-500/12 backdrop-blur-md border border-red-400/30 rounded-lg px-3.5 py-2.5 text-xs text-red-200 flex flex-wrap items-center justify-between gap-3">
               <span className="flex-1 min-w-0">{chatError}</span>
               <button
                 type="button"

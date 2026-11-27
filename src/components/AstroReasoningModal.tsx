@@ -34,11 +34,11 @@ const STATE_LABELS = [
   'Leans toward the outcome: pull, renewed attention',
 ] as const;
 
-const COL_BG = '#16140f';
-const COL_CARD = '#201d17';
+const COL_BG = 'rgba(13, 17, 25, 0.78)';
+const COL_CARD = 'rgba(255, 255, 255, 0.045)';
 const COL_FG = '#ece6dc';
 const COL_MUT = '#a39a8e';
-const COL_LN = '#3a352c';
+const COL_LN = 'rgba(255, 255, 255, 0.12)';
 const COL_POS = '#5fcf8f';
 const COL_NEG = '#ff7b6b';
 const COL_NEU = '#9a9186';
@@ -388,18 +388,18 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-md p-2 sm:p-4"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{ backgroundColor: COL_BG, color: COL_FG, borderColor: COL_LN }}
-        className="w-full max-w-6xl h-[92vh] sm:h-[88vh] flex flex-col rounded-2xl border shadow-2xl overflow-hidden"
+        className="w-full max-w-6xl h-[92vh] sm:h-[88vh] flex flex-col rounded-2xl border backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_28px_80px_rgba(0,0,0,0.68)] overflow-hidden"
       >
         {/* Top Modal Header */}
         <div
           style={{ backgroundColor: COL_CARD, borderColor: COL_LN }}
-          className="px-4 py-2.5 border-b flex flex-wrap items-center justify-between gap-2 shrink-0"
+          className="px-4 py-2.5 border-b backdrop-blur-xl flex flex-wrap items-center justify-between gap-2 shrink-0"
         >
           <div className="flex items-center gap-2.5 min-w-0">
             <BookOpen className="w-4 h-4 text-[#D4A853] shrink-0" />
@@ -491,7 +491,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
           <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
             <div
               style={{ backgroundColor: COL_CARD, borderColor: COL_LN }}
-              className="rounded-xl border p-4 space-y-1.5"
+              className="rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-4 space-y-1.5"
             >
               <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[#a39a8e]">
                 Question Evaluated
@@ -501,7 +501,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
 
             <div
               style={{ backgroundColor: COL_CARD, borderColor: 'rgba(212,168,83,0.35)' }}
-              className="rounded-xl border p-5 space-y-2.5"
+              className="rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] p-5 space-y-2.5"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h4 className="text-xs font-semibold uppercase tracking-wider text-[#D4A853]">
@@ -521,7 +521,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
             {reading.verdictSummary && (
               <div
                 style={{ backgroundColor: COL_CARD, borderColor: COL_LN }}
-                className="rounded-xl border p-4 space-y-1.5"
+                className="rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-4 space-y-1.5"
               >
                 <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[#a39a8e]">
                   Real-World Verdict
@@ -536,7 +536,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
             {/* LAYER 1: Left = 2D Orbital SVG Map, Right = Reasoning Panel */}
             <div
               style={{ backgroundColor: COL_CARD, borderColor: COL_LN }}
-              className="flex-1 min-h-0 rounded-xl border p-2.5 flex flex-col sm:flex-row gap-2.5 overflow-hidden"
+              className="flex-1 min-h-0 rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-2.5 flex flex-col sm:flex-row gap-2.5 overflow-hidden"
             >
               {/* Left: 2D Planet Influence SVG Map */}
               <div className="flex-[1.2] sm:flex-[1.7] min-w-0 min-h-0 flex items-center justify-center">
@@ -763,7 +763,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
             {/* LAYER 2: Thin Outcome Balance Sparkline Over Entire Window */}
             <div
               style={{ backgroundColor: COL_CARD, borderColor: COL_LN }}
-              className="h-[54px] shrink-0 rounded-xl border px-2 py-1"
+              className="h-[54px] shrink-0 rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] px-2 py-1"
             >
               <svg
                 ref={sparkRef}
@@ -804,7 +804,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
             {/* LAYER 3: Play / Pause / Replay + Slider + Date + Load JSON */}
             <div
               style={{ backgroundColor: COL_CARD, borderColor: COL_LN }}
-              className="shrink-0 rounded-xl border px-3 py-2 flex items-center gap-2.5"
+              className="shrink-0 rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] px-3 py-2 flex items-center gap-2.5"
             >
               <button
                 type="button"
@@ -847,7 +847,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
           <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
             <div
               style={{ backgroundColor: COL_CARD, borderColor: COL_LN }}
-              className="rounded-xl border p-5 space-y-3"
+              className="rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-5 space-y-3"
             >
               {isBuildingTimeline ? (
                 <div className="flex items-center gap-3 text-xs text-[#D4A853]">
@@ -882,7 +882,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
                         type="button"
                         onClick={handleOpenLoadJson}
                         style={{ borderColor: COL_LN }}
-                        className="px-3.5 py-1.5 rounded-lg border text-xs font-medium text-[#ece6dc] hover:bg-white/[0.06]"
+                        className="px-3.5 py-1.5 rounded-lg border bg-white/[0.04] hover:bg-white/[0.08] text-xs font-medium text-[#ece6dc]"
                       >
                         Load JSON
                       </button>
@@ -894,7 +894,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
 
             <div
               style={{ backgroundColor: COL_CARD, borderColor: COL_LN }}
-              className="rounded-xl border p-5 space-y-2"
+              className="rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-5 space-y-2"
             >
               <h4 className="text-xs font-semibold uppercase tracking-wider text-[#D4A853]">
                 Full {engineLabel} Reasoning Text (Request 1)
@@ -909,13 +909,13 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
         {/* Load JSON Dialog Overlay (exact validation rules from reference) */}
         {loadModalOpen && (
           <div
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/65 p-4"
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/65 backdrop-blur-md p-4"
             onClick={() => setLoadModalOpen(false)}
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              style={{ backgroundColor: COL_CARD, borderColor: COL_LN }}
-              className="w-full max-w-2xl rounded-xl border p-4 space-y-3 shadow-2xl"
+              style={{ backgroundColor: COL_BG, borderColor: COL_LN }}
+              className="w-full max-w-2xl rounded-2xl border backdrop-blur-2xl p-4 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_28px_80px_rgba(0,0,0,0.68)]"
             >
               <div className="flex items-center justify-between">
                 <b className="text-sm text-[#ece6dc]">
@@ -933,8 +933,8 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
                 value={jsonInput}
                 onChange={(e) => setJsonInput(e.target.value)}
                 spellCheck={false}
-                style={{ backgroundColor: COL_BG, color: COL_FG, borderColor: COL_LN }}
-                className="w-full h-[44vh] rounded-lg border p-3 text-xs font-mono leading-relaxed outline-none focus:border-[#D4A853]"
+                style={{ borderColor: COL_LN }}
+                className="w-full h-[44vh] rounded-lg border bg-white/[0.04] backdrop-blur-md p-3 text-xs font-mono text-[#ece6dc] leading-relaxed outline-none focus:border-[#D4A853]"
               />
               <div className="min-h-[16px] text-xs text-[#ff7b6b]">{jsonError}</div>
               <div className="flex items-center justify-end gap-2">

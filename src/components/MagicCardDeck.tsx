@@ -197,11 +197,11 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
 
       {/* 3D Flippable Translucent Glass Magic Card Builder */}
       {isMaxReached ? (
-        <div className="max-w-2xl mx-auto rounded-2xl border border-white/15 bg-white/[0.03] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_18px_40px_rgba(0,0,0,0.4)] p-6 text-center space-y-2">
+        <div className="max-w-2xl mx-auto rounded-2xl border border-white/15 bg-white/[0.045] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_20px_50px_rgba(0,0,0,0.42)] p-6 text-center space-y-2">
           <p className="text-sm font-semibold text-[#EDEFF5]">
             1 / 1 Magic Card Ready
           </p>
-          <p className="text-xs text-[#8E95A5]">
+          <p className="text-xs text-[#98A0B2]">
             One focused card is staged for this thread. Click the card below to edit it, or click{' '}
             <span className="text-[#D4A853] font-medium">Submit Card</span>.
           </p>
@@ -424,12 +424,12 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
       )}
 
       {/* TRANSPARENT GLASS CARD SLOT + SUBMIT CARD */}
-      <div className="rounded-2xl border border-white/10 bg-white/[0.025] backdrop-blur-xl p-4 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+      <div className="rounded-2xl border border-white/12 bg-white/[0.035] backdrop-blur-2xl p-4 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.11),0_16px_42px_rgba(0,0,0,0.34)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Layers className="w-4 h-4 text-[#D4A853]" />
             <h3 className="text-sm font-semibold text-[#EDEFF5]">Thread Card</h3>
-            <span className="text-xs font-mono tabular-nums text-[#8E95A5]">
+            <span className="text-xs font-mono tabular-nums text-[#98A0B2]">
               · {cards.length} / {MAX_MAGIC_CARDS}
             </span>
           </div>
@@ -438,7 +438,7 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
             type="button"
             disabled={cards.length === 0 || !isRangeValid || !isFutureValid || isSubmitting}
             onClick={onSubmitThread}
-            className="px-5 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap shrink-0 disabled:opacity-40 disabled:cursor-not-allowed bg-[#D4A853] hover:bg-[#DFB96B] text-[#111318]"
+            className="px-5 py-2 text-xs font-semibold rounded-xl transition-colors flex items-center gap-2 whitespace-nowrap shrink-0 disabled:opacity-40 disabled:cursor-not-allowed bg-[#D4A853] hover:bg-[#DFB96B] text-[#111318] shadow-[0_6px_18px_rgba(212,168,83,0.25)]"
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>
@@ -450,8 +450,8 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
         </div>
 
         {cards.length === 0 ? (
-          <div className="border border-dashed border-white/15 rounded-xl py-5 text-center bg-white/[0.015]">
-            <p className="text-xs text-[#8E95A5]">
+          <div className="border border-dashed border-white/15 rounded-xl py-5 text-center bg-white/[0.02] backdrop-blur-md">
+            <p className="text-xs text-[#98A0B2]">
               No card staged yet. Choose a theme above, fill in what happened, flip to ask your question, and stage your card.
             </p>
           </div>
