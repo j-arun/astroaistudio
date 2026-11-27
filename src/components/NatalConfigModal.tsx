@@ -588,7 +588,7 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                 <div className="bg-[#111318] border border-[#262A34] rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-medium text-[#EDEFF5]">
-                      Fable OpenAI-Compatible Endpoint
+                      Fable / Anthropic Endpoint
                     </span>
                     <button
                       type="button"
@@ -608,7 +608,7 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                       type="url"
                       value={fableEndpointUrl}
                       onChange={(e) => setFableEndpointUrl(e.target.value)}
-                      placeholder="https://your-fable-host/v1/chat/completions"
+                      placeholder="https://api.anthropic.com/v1/messages"
                       className="w-full bg-[#181B22] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#EDEFF5] placeholder-[#555C6E] outline-none"
                     />
                   </div>
@@ -621,19 +621,19 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                         type="text"
                         value={fableModel}
                         onChange={(e) => setFableModel(e.target.value)}
-                        placeholder="e.g., fable-5.2"
+                        placeholder="e.g., claude-sonnet-4-20250514"
                         className="w-full bg-[#181B22] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#EDEFF5] placeholder-[#555C6E] outline-none"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-[#8E95A5] mb-1.5">
-                        Fable Access Token (Optional)
+                        API Key (x-api-key / Bearer)
                       </label>
                       <input
                         type="password"
                         value={fableApiKey}
                         onChange={(e) => setFableApiKey(e.target.value)}
-                        placeholder="Bearer token"
+                        placeholder="sk-ant-... (or set in Secrets)"
                         className="w-full bg-[#181B22] border border-[#262A34] focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#EDEFF5] placeholder-[#555C6E] outline-none"
                       />
                     </div>

@@ -125,6 +125,17 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
   const activeReading =
     activeTab === 'private' ? activeCard?.privateReading : activeCard?.reading;
 
+  const isLocalEngine =
+    activeTab === 'private' || primaryProvider === 'ollama';
+  const predictedModelName =
+    activeTab === 'private'
+      ? thread.privateModel ||
+        activeReading?.grahaTimeline?.generatedByModel ||
+        'Ollama'
+      : thread.primaryModel ||
+        activeReading?.grahaTimeline?.generatedByModel ||
+        primaryTabLabel;
+
   const draftSpanMonths = monthDiffInclusive(draftFutureStart, draftFutureEnd);
   const isDraftFutureValid = draftSpanMonths >= 1 && draftSpanMonths <= 3;
 
@@ -263,18 +274,32 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
         <>
           {/* Macro Realistic Outlook Header */}
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-4 space-y-2">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-[#8E95A5]">
-              <h2 className="text-sm font-semibold text-[#D4A853]">
-                {activeTab === 'private' ? 'Period Outlook · Private LLM' : 'Period Outlook'}
-              </h2>
-              <span aria-hidden="true">·</span>
-              <span className="tabular-nums">{pastLabel}</span>
-              <ArrowRight className="w-3 h-3 text-[#6C7384]" />
-              <span className="text-[#EDEFF5] font-medium tabular-nums">{futureLabel}</span>
-              <span aria-hidden="true">·</span>
-              <span className="tabular-nums">
-                {thread.cards.length} {thread.cards.length === 1 ? 'Card' : 'Cards'}
-              </span>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#8E95A5]">
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
+                <h2 className="text-sm font-semibold text-[#D4A853]">
+                  {activeTab === 'private' ? 'Period Outlook · Private LLM' : 'Period Outlook'}
+                </h2>
+                <span aria-hidden="true">·</span>
+                <span className="tabular-nums">{pastLabel}</span>
+                <ArrowRight className="w-3 h-3 text-[#6C7384]" />
+                <span className="text-[#EDEFF5] font-medium tabular-nums">{futureLabel}</span>
+                <span aria-hidden="true">·</span>
+                <span className="tabular-nums">
+                  {thread.cards.length} {thread.cards.length === 1 ? 'Card' : 'Cards'}
+                </span>
+              </div>
+
+              <div
+                title={`Predicted by ${predictedModelName}`}
+                className="inline-flex items-center gap-1.5 text-[11px] font-mono text-[#B9C0D0] whitespace-nowrap shrink-0 ml-auto"
+              >
+                {isLocalEngine ? (
+                  <Cpu className="w-3.5 h-3.5 text-[#D4A853]" />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5 text-[#D4A853]" />
+                )}
+                <span>{predictedModelName}</span>
+              </div>
             </div>
 
             {activeSynthesis && (

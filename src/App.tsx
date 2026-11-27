@@ -629,6 +629,13 @@ export default function App() {
         .slice(0, 2)
         .join(' & ')}`;
 
+      const resolvedPrimaryModel =
+        apiConfig.llmProvider === 'fable'
+          ? apiConfig.fableModel?.trim() || 'Fable'
+          : apiConfig.llmProvider === 'ollama'
+          ? apiConfig.ollamaModel?.trim() || 'Ollama'
+          : apiConfig.geminiModel?.trim() || 'gemini-4-hydrogen';
+
       const completedThread: AstroThread = {
         ...activeThread,
         profileId: activeProfile.id,
@@ -636,6 +643,7 @@ export default function App() {
         submittedAt: new Date().toISOString(),
         step: 'reading',
         primaryProvider: apiConfig.llmProvider,
+        primaryModel: resolvedPrimaryModel,
         cards: enrichedCards,
         overallSynthesis: data.overallSynthesis || '',
       };

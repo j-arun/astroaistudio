@@ -143,6 +143,7 @@ export interface AstroThread {
   submittedAt?: string;
   step: ThreadStep;
   primaryProvider?: LlmProvider;
+  primaryModel?: string;
   narrativeWindow: TransitWindow;
   cards: MagicCard[];
   futureWindow: TransitWindow;

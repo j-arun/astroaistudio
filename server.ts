@@ -105,6 +105,26 @@ function extractPlainTextFromResponse(contentType: string, rawBody: string): str
   return rawBody;
 }
 
+function resolveFableApiKey(cfg: PersistedConfig): string {
+  const candidates = [
+    cfg.fableApiKey,
+    process.env.ANTHROPIC_API_KEY,
+    process.env.FABLE_API_KEY,
+    process.env.CLAUDE_API_KEY,
+    cfg.apiBearerToken,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      const stripped = candidate.trim().replace(/^Bearer\s+/i, '').trim();
+      const firstToken = stripped.split(/[\r\n,;]+/).map((s) => s.trim()).filter(Boolean)[0];
+      if (firstToken) {
+        return firstToken.replace(/^Bearer\s+/i, '').trim();
+      }
+    }
+  }
+  return '';
+}
+
 async function callFableAdapter(
   cfg: PersistedConfig,
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
@@ -116,26 +136,68 @@ async function callFableAdapter(
     );
   }
 
+  const endpointUrl = cfg.fableEndpointUrl.trim();
+  const rawKey = resolveFableApiKey(cfg);
+  if (!rawKey) {
+    throw new Error(
+      'Fable API key is missing. Enter your key in Settings -> LLM Adapters (Fable API Key) or set ANTHROPIC_API_KEY / FABLE_API_KEY in Secrets.'
+    );
+  }
+
+  const isAnthropicEndpoint =
+    /\/v1\/messages\b/i.test(endpointUrl) ||
+    /anthropic\.com/i.test(endpointUrl) ||
+    /^(claude|fable)/i.test((cfg.fableModel || '').trim());
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  if (cfg.fableApiKey && cfg.fableApiKey.trim()) {
-    headers['Authorization'] = cfg.fableApiKey.startsWith('Bearer ')
-      ? cfg.fableApiKey.trim()
-      : `Bearer ${cfg.fableApiKey.trim()}`;
+
+  let bodyPayload: Record<string, unknown>;
+
+  if (isAnthropicEndpoint) {
+    headers['x-api-key'] = rawKey;
+    headers['anthropic-version'] = '2023-06-01';
+
+    const systemText = messages
+      .filter((m) => m.role === 'system')
+      .map((m) => m.content)
+      .join('\n\n')
+      .trim();
+
+    const conversationMessages = messages
+      .filter((m) => m.role !== 'system')
+      .map((m) => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: m.content,
+      }));
+
+    bodyPayload = {
+      model: (cfg.fableModel && cfg.fableModel.trim()) || 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      messages:
+        conversationMessages.length > 0
+          ? conversationMessages
+          : [{ role: 'user', content: systemText || 'Hello' }],
+    };
+    if (systemText) {
+      bodyPayload.system = systemText;
+    }
+  } else {
+    headers['x-api-key'] = rawKey;
+    headers['Authorization'] = `Bearer ${rawKey}`;
+    bodyPayload = {
+      messages,
+    };
+    if (cfg.fableModel && cfg.fableModel.trim()) {
+      bodyPayload.model = cfg.fableModel.trim();
+    }
+    if (expectJson) {
+      bodyPayload.response_format = { type: 'json_object' };
+    }
   }
 
-  const bodyPayload: Record<string, unknown> = {
-    messages,
-  };
-  if (cfg.fableModel && cfg.fableModel.trim()) {
-    bodyPayload.model = cfg.fableModel.trim();
-  }
-  if (expectJson) {
-    bodyPayload.response_format = { type: 'json_object' };
-  }
-
-  const upstream = await fetch(cfg.fableEndpointUrl.trim(), {
+  const upstream = await fetch(endpointUrl, {
     method: 'POST',
     headers,
     body: JSON.stringify(bodyPayload),
@@ -148,6 +210,17 @@ async function callFableAdapter(
 
   try {
     const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed?.content)) {
+      const anthropicText = parsed.content
+        .filter(
+          (block: Record<string, unknown>) =>
+            block && block.type === 'text' && typeof block.text === 'string'
+        )
+        .map((block: Record<string, unknown>) => block.text as string)
+        .join('\n')
+        .trim();
+      if (anthropicText) return anthropicText;
+    }
     const content =
       parsed?.choices?.[0]?.message?.content ??
       parsed?.output_text ??
@@ -442,7 +515,7 @@ async function startServer() {
           ? fableModel.trim()
           : storedCfg.fableModel || '',
       fableApiKey:
-        typeof fableApiKey === 'string'
+        typeof fableApiKey === 'string' && fableApiKey.trim()
           ? fableApiKey.trim()
           : storedCfg.fableApiKey || '',
       ollamaBaseUrl:
