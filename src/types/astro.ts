@@ -140,6 +140,7 @@ export interface AstroThread {
   profileId: string;
   personId?: string;
   title: string;
+  isCustomTitle?: boolean;
   createdAt: string;
   updatedAt?: string;
   submittedAt?: string;

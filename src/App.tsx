@@ -5,11 +5,13 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
+  Pencil,
   Plus,
   Settings,
   Sparkles,
   Trash2,
   UserPlus,
+  X,
 } from 'lucide-react';
 import {
   AstroProfile,
@@ -37,6 +39,7 @@ import { OpenedCardSpread } from './components/OpenedCardSpread';
 import { NatalConfigModal } from './components/NatalConfigModal';
 import { buildAnalyzePromptParts } from './data/promptBuilder';
 import { getCardTheme } from './data/cardThemes';
+import { ProviderIcon } from './components/ProviderIcon';
 
 const STORAGE_PROFILES_KEY = 'astro_studio_profiles_v2';
 const STORAGE_THREADS_KEY = 'astro_studio_threads_v2';
@@ -91,18 +94,46 @@ function createInitialDraftThread(profile: AstroProfile | null): AstroThread {
   };
 }
 
-function deriveThreadSubjectTitle(thread: Pick<AstroThread, 'title' | 'cards' | 'narrativeWindow' | 'futureWindow'>): string {
+function deriveThreadSubjectTitle(
+  thread: Pick<AstroThread, 'title' | 'isCustomTitle' | 'cards' | 'narrativeWindow' | 'futureWindow'>
+): string {
+  const existing = typeof thread.title === 'string' ? thread.title.trim() : '';
+  if (thread.isCustomTitle && existing) {
+    return existing;
+  }
   const cardSubjects = (thread.cards || [])
     .map((c) => (typeof c.title === 'string' ? c.title.trim() : ''))
     .filter(Boolean);
   if (cardSubjects.length > 0) {
     return cardSubjects.join(' · ');
   }
-  const existing = typeof thread.title === 'string' ? thread.title.trim() : '';
   if (existing && existing !== 'New Thread') {
     return existing;
   }
   return 'New Thread';
+}
+
+function resolveThreadProvider(thread: AstroThread): LlmProvider | null {
+  if (thread.primaryProvider) return thread.primaryProvider;
+  const modelStr = (thread.primaryModel || '').toLowerCase();
+  if (/claude|fable|anthropic|palm/.test(modelStr)) return 'fable';
+  if (/gemini/.test(modelStr)) return 'gemini';
+  if (/ollama|qwen|llama|mistral|deepseek/.test(modelStr)) return 'ollama';
+  for (const card of thread.cards || []) {
+    if (card.reading?.grahaTimeline?.generatedByProvider) {
+      return card.reading.grahaTimeline.generatedByProvider;
+    }
+  }
+  const msgProvider = (thread.messages || []).find((m) => m.provider)?.provider;
+  if (msgProvider) return msgProvider;
+  if (
+    thread.step === 'reading' ||
+    Boolean(thread.overallSynthesis) ||
+    Boolean(thread.cards?.some((c) => Boolean(c.reading)))
+  ) {
+    return 'gemini';
+  }
+  return null;
 }
 
 function normalizeThread(thread: AstroThread): AstroThread {
@@ -111,7 +142,9 @@ function normalizeThread(thread: AstroThread): AstroThread {
   const looksAutoOrBlank =
     !currentTitle || currentTitle === 'New Thread' || currentTitle.includes(' → ');
   const resolvedTitle =
-    hasCardSubject && looksAutoOrBlank
+    thread.isCustomTitle && currentTitle
+      ? currentTitle
+      : hasCardSubject && looksAutoOrBlank
       ? deriveThreadSubjectTitle(thread)
       : currentTitle || deriveThreadSubjectTitle(thread);
   const hasReading = Boolean(
@@ -254,6 +287,8 @@ export default function App() {
   } | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [showFullPromptPreview, setShowFullPromptPreview] = useState(false);
+  const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
+  const [editingThreadTitle, setEditingThreadTitle] = useState('');
 
   useEffect(() => {
     if (!isResizingSidebar) return;
@@ -713,9 +748,49 @@ export default function App() {
 
   const handleDeleteThread = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
+    if (editingThreadId === id) {
+      setEditingThreadId(null);
+      setEditingThreadTitle('');
+    }
     void persistThreads((prev) => prev.filter((t) => t.id !== id));
     if (activeThread.id === id) {
       handleStartNewThread();
+    }
+  };
+
+  const handleStartRenameThread = (e: React.MouseEvent, thread: AstroThread) => {
+    e.stopPropagation();
+    setEditingThreadId(thread.id);
+    setEditingThreadTitle(thread.title || '');
+  };
+
+  const handleCancelRenameThread = (e?: React.SyntheticEvent) => {
+    if (e) e.stopPropagation();
+    setEditingThreadId(null);
+    setEditingThreadTitle('');
+  };
+
+  const handleCommitRenameThread = (id: string) => {
+    const trimmed = editingThreadTitle.trim();
+    setEditingThreadId(null);
+    setEditingThreadTitle('');
+    if (!trimmed) return;
+
+    const nowIso = new Date().toISOString();
+    void persistThreads((prev) =>
+      prev.map((t) =>
+        t.id === id
+          ? { ...t, title: trimmed, isCustomTitle: true, updatedAt: nowIso }
+          : t
+      )
+    );
+    if (activeThread.id === id) {
+      setActiveThread((prev) => ({
+        ...prev,
+        title: trimmed,
+        isCustomTitle: true,
+        updatedAt: nowIso,
+      }));
     }
   };
 
@@ -854,12 +929,21 @@ export default function App() {
     setIsAnalyzing(true);
     setAnalyzeError(null);
 
+    const resolvedPrimaryModel =
+      apiConfig.llmProvider === 'fable'
+        ? apiConfig.fableModel?.trim() || 'Fable'
+        : apiConfig.llmProvider === 'ollama'
+        ? apiConfig.ollamaModel?.trim() || 'Ollama'
+        : apiConfig.geminiModel?.trim() || 'gemini-4-hydrogen';
+
     const subjectTitle = deriveThreadSubjectTitle(activeThread);
     const stagedThread: AstroThread = {
       ...activeThread,
       profileId: activeProfile.id,
       personId: activeProfile.personId,
       title: subjectTitle,
+      primaryProvider: apiConfig.llmProvider,
+      primaryModel: resolvedPrimaryModel,
       updatedAt: new Date().toISOString(),
     };
     setActiveThread(stagedThread);
@@ -938,20 +1022,15 @@ export default function App() {
         .join(' & ')}`;
 
       const finalSubjectTitle =
-        enrichedCards
-          .map((c) => c.title.trim())
-          .filter(Boolean)
-          .join(' · ') ||
-        (stagedThread.title && stagedThread.title !== 'New Thread'
-          ? stagedThread.title
-          : fallbackDateTitle);
-
-      const resolvedPrimaryModel =
-        apiConfig.llmProvider === 'fable'
-          ? apiConfig.fableModel?.trim() || 'Fable'
-          : apiConfig.llmProvider === 'ollama'
-          ? apiConfig.ollamaModel?.trim() || 'Ollama'
-          : apiConfig.geminiModel?.trim() || 'gemini-4-hydrogen';
+        stagedThread.isCustomTitle && stagedThread.title.trim()
+          ? stagedThread.title.trim()
+          : enrichedCards
+              .map((c) => c.title.trim())
+              .filter(Boolean)
+              .join(' · ') ||
+            (stagedThread.title && stagedThread.title !== 'New Thread'
+              ? stagedThread.title
+              : fallbackDateTitle);
 
       const completedThread: AstroThread = {
         ...stagedThread,
@@ -1657,35 +1736,113 @@ export default function App() {
           ) : (
             profileThreads.map((t) => {
               const isSelected = activeThread.id === t.id;
+              const isEditingThis = editingThreadId === t.id;
+              const provider = resolveThreadProvider(t);
               const dt = new Date(t.submittedAt || t.createdAt);
               const dateStr = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
               const timeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
               return (
                 <div
                   key={t.id}
-                  onClick={() => handleSelectSavedThread(t)}
+                  onClick={() => {
+                    if (!isEditingThis) handleSelectSavedThread(t);
+                  }}
                   className={`group cursor-pointer rounded-xl px-2.5 py-2.5 transition-all border ${
                     isSelected
                       ? 'bg-white/[0.09] border-white/20 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'
                       : 'bg-transparent border-transparent hover:bg-white/[0.045] hover:border-white/[0.08]'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <p
-                      className={`text-xs font-medium leading-snug line-clamp-1 ${
-                        isSelected ? 'text-[#EDEFF5]' : 'text-[#C8CEDB]'
-                      }`}
-                    >
-                      {t.title}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={(e) => handleDeleteThread(e, t.id)}
-                      className="opacity-40 group-hover:opacity-100 text-[#7D8596] hover:text-red-400 transition-opacity shrink-0"
-                      title="Delete thread"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+                  <div className="flex items-center justify-between gap-1.5">
+                    {isEditingThis ? (
+                      <div
+                        className="flex items-center gap-1 flex-1 min-w-0"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="text"
+                          autoFocus
+                          value={editingThreadTitle}
+                          onChange={(e) => setEditingThreadTitle(e.target.value)}
+                          onFocus={(e) => e.currentTarget.select()}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleCommitRenameThread(t.id);
+                            } else if (e.key === 'Escape') {
+                              e.preventDefault();
+                              handleCancelRenameThread(e);
+                            }
+                          }}
+                          onBlur={() => handleCommitRenameThread(t.id)}
+                          aria-label="Edit thread name"
+                          className="flex-1 min-w-0 bg-white/[0.08] border border-[#D4A853]/70 rounded-md px-2 py-0.5 text-xs font-medium text-[#EDEFF5] outline-none"
+                        />
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCommitRenameThread(t.id);
+                          }}
+                          title="Save thread name"
+                          aria-label="Save thread name"
+                          className="p-1 text-emerald-400 hover:text-emerald-300 rounded transition-colors shrink-0"
+                        >
+                          <Check className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={handleCancelRenameThread}
+                          title="Cancel rename"
+                          aria-label="Cancel rename"
+                          className="p-1 text-[#7D8596] hover:text-[#EDEFF5] rounded transition-colors shrink-0"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          {provider && (
+                            <ProviderIcon
+                              provider={provider}
+                              model={t.primaryModel}
+                              className="w-3.5 h-3.5"
+                            />
+                          )}
+                          <p
+                            className={`text-xs font-medium leading-snug truncate ${
+                              isSelected ? 'text-[#EDEFF5]' : 'text-[#C8CEDB]'
+                            }`}
+                            title={t.title}
+                          >
+                            {t.title}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => handleStartRenameThread(e, t)}
+                            className="opacity-45 group-hover:opacity-100 text-[#7D8596] hover:text-[#D4A853] p-0.5 rounded transition-opacity shrink-0"
+                            title="Edit thread name"
+                            aria-label="Edit thread name"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteThread(e, t.id)}
+                            className="opacity-45 group-hover:opacity-100 text-[#7D8596] hover:text-red-400 p-0.5 rounded transition-opacity shrink-0"
+                            title="Delete thread"
+                            aria-label="Delete thread"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5 text-[10px] font-mono tabular-nums text-[#7D8596] mt-1">
                     <span>{dateStr}</span>
@@ -2101,10 +2258,12 @@ export default function App() {
                       }}
                       onChangeCards={(cards) => {
                         const nextTitle =
-                          cards
-                            .map((c) => c.title.trim())
-                            .filter(Boolean)
-                            .join(' · ') || 'New Thread';
+                          activeThread.isCustomTitle && activeThread.title.trim()
+                            ? activeThread.title.trim()
+                            : cards
+                                .map((c) => c.title.trim())
+                                .filter(Boolean)
+                                .join(' · ') || 'New Thread';
                         const updated: AstroThread = {
                           ...activeThread,
                           profileId: activeProfile?.id || activeThread.profileId,
