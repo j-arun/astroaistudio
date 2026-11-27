@@ -36,8 +36,8 @@ export function condenseAstroDumpText(rawText: string): string {
 
     // Unwrap decorative heading framing: === HEADER ===, *** HEADER ***, ## HEADER
     line = line
-      .replace(/^[=\-*~#]+\s+/, '')
-      .replace(/\s+[=\-*~#]+$/, '')
+      .replace(/^(?:#+|[=\-*~]{2,})\s+/, '')
+      .replace(/\s+[=\-*~#]{2,}$/, '')
       .replace(/\*\*/g, '')
       .replace(/\s+:/g, ':')
       .replace(/[ \t]{2,}/g, ' ')
@@ -86,38 +86,54 @@ export function buildCondensedImportPrompt(
   const cleanPast = condenseAstroDumpText(params.narrativeWindow.transitDump || '');
   const cleanFuture = condenseAstroDumpText(params.futureWindow.transitDump || '');
 
-  const cardsBlock = params.cards
+  const pastEventsBlock = params.cards
     .map((c, idx) => {
+      const titleText = (c.title || '').trim();
+      const dateText = (c.eventDate || '').trim();
+      const narrativeText = (c.narrative || '').trim();
+      return `Event #${idx + 1} (${c.domain})
+Title: ${titleText}
+Event Date: ${dateText}
+Past Event Narrative: ${narrativeText}`;
+    })
+    .join('\n\n');
+
+  const futureQuestionsBlock = params.cards
+    .map((c, idx) => {
+      const titleText = (c.title || '').trim();
       const q =
         c.question?.trim() ||
         'Realistic possibilities and outlook for this domain in the future window.';
-      const cleanTitle = condenseAstroDumpText(c.title || '');
-      const cleanNarrative = condenseAstroDumpText(c.narrative || '');
-      return `Case ${idx + 1} [${c.domain}] ${c.eventDate}: ${cleanTitle} | Event: ${cleanNarrative} | Question: ${q}`;
+      return `Question #${idx + 1} (${c.domain}${titleText ? ` · ${titleText}` : ''}) for ${params.futureWindow.startMonth} to ${params.futureWindow.endMonth}: ${q}`;
     })
-    .join('\n');
+    .join('\n\n');
 
-  const condensedPrompt = `Act as a master Jyotish analyst. Synthesize 3 datasets: Natal Baseline, Past Calibration (${params.narrativeWindow.startMonth}..${params.narrativeWindow.endMonth} transits + dated real-life event), and Future Window (${params.futureWindow.startMonth}..${params.futureWindow.endMonth} transits + question).
+  const condensedPrompt = `Act as a master Jyotish analyst. Synthesize all 3 folds: Natal Baseline, Past Calibration (${params.narrativeWindow.startMonth} to ${params.narrativeWindow.endMonth} transits + dated real-life event narrative), and Future Target (${params.futureWindow.startMonth} to ${params.futureWindow.endMonth} transits + future question).
 
 Rules:
-1. Period Outlook, Realistic Outlook, Timing Window, Guidance: strictly plain real-world human scenarios and practical next steps (ZERO astrology terms).
-2. Astrological Reasoning: cite exact Dasha-Bhukti-Antara, Moon-sign Gochara, house lordships, relevant D-charts (D9/D10/D24/D60), SAV/BAV bindus, and how the past event calibrated this pattern.
-3. Format output cleanly with these exact Markdown headings so it imports cleanly:
+1. Overall Synthesis, Realistic Outlook, Timing Window, and Practical Guidance: strictly real-world human scenarios and next steps (ZERO astrology terms).
+2. Astrological Reasoning: cite exact Dasha-Bhukti-Antara, Moon-sign Gochara, house lordships, relevant D-charts (D9/D10/D24/D60), SAV/BAV bindus, and how the past event narrative calibrated this pattern.
+3. Reply with these exact Markdown headings:
 ## Overall Synthesis
 ## Realistic Outlook
 ## Timing Window
 ## Practical Guidance
 ## Astrological Reasoning
 
-[NATAL]
+[NATAL BASELINE]
 ${cleanNatal}
 
-[PAST ${params.narrativeWindow.startMonth}..${params.narrativeWindow.endMonth}]
+[PAST CALIBRATION TRANSITS: ${params.narrativeWindow.startMonth} to ${params.narrativeWindow.endMonth}]
 ${cleanPast}
-${cardsBlock}
 
-[FUTURE ${params.futureWindow.startMonth}..${params.futureWindow.endMonth}]
-${cleanFuture}`;
+[PAST EVENT NARRATIVE]
+${pastEventsBlock}
+
+[FUTURE TARGET TRANSITS: ${params.futureWindow.startMonth} to ${params.futureWindow.endMonth}]
+${cleanFuture}
+
+[FUTURE QUESTION TO ANSWER (${params.futureWindow.startMonth} to ${params.futureWindow.endMonth})]
+${futureQuestionsBlock}`;
 
   const originalLength = fullOriginal.length;
   const condensedLength = condensedPrompt.length;

@@ -547,12 +547,18 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                   style={{ backgroundImage: cTheme.ambientGlow }}
                 >
                   <div className="relative z-10 flex items-center justify-between gap-2 text-[11px] mb-2">
-                    <span
-                      className={`inline-flex items-center gap-1.5 font-medium ${cTheme.accentText}`}
-                    >
-                      <CardIcon className="w-3.5 h-3.5" />
-                      <span>{cTheme.label}</span>
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-flex items-center gap-1.5 font-medium ${cTheme.accentText}`}
+                      >
+                        <CardIcon className="w-3.5 h-3.5" />
+                        <span>{cTheme.label}</span>
+                      </span>
+                      <span className="text-white/30">·</span>
+                      <span className="font-mono tabular-nums text-white/60">
+                        {card.eventDate}
+                      </span>
+                    </div>
                     <button
                       type="button"
                       onClick={(e) => {
@@ -569,6 +575,9 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                     {card.title}
                   </p>
                   <p className="relative z-10 text-[11px] text-white/65 line-clamp-1 mt-1">
+                    Event: {card.narrative}
+                  </p>
+                  <p className="relative z-10 text-[11px] text-white/75 line-clamp-1 mt-0.5">
                     Q: {card.question}
                   </p>
                 </div>
