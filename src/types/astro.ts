@@ -135,12 +135,25 @@ export interface ThreadMessage {
   timestamp: string;
 }
 
+export type ImportedSourceSystem = 'claude' | 'chatgpt' | 'gemini' | 'other';
+
+export interface ImportedReportSection {
+  heading: string;
+  content: string;
+}
+
 export interface AstroThread {
   id: string;
   profileId: string;
   personId?: string;
   title: string;
   isCustomTitle?: boolean;
+  isImported?: boolean;
+  importFormat?: 'md' | 'html' | 'txt' | 'json';
+  importedFileName?: string;
+  importedSource?: ImportedSourceSystem;
+  importedRawContent?: string;
+  importedSections?: ImportedReportSection[];
   createdAt: string;
   updatedAt?: string;
   submittedAt?: string;

@@ -10,6 +10,7 @@ import {
   Settings,
   Sparkles,
   Trash2,
+  Upload,
   UserPlus,
   X,
 } from 'lucide-react';
@@ -18,6 +19,7 @@ import {
   AstroThread,
   CardReading,
   GrahaTimelineData,
+  ImportedSourceSystem,
   LlmProvider,
   MagicCard,
   StudioApiConfig,
@@ -37,9 +39,11 @@ import {
 import { MagicCardDeck } from './components/MagicCardDeck';
 import { OpenedCardSpread } from './components/OpenedCardSpread';
 import { NatalConfigModal } from './components/NatalConfigModal';
+import { RightImportPanel } from './components/RightImportPanel';
 import { buildAnalyzePromptParts } from './data/promptBuilder';
 import { getCardTheme } from './data/cardThemes';
 import { ProviderIcon } from './components/ProviderIcon';
+import { parseImportedReport } from './data/importedReportParser';
 
 const STORAGE_PROFILES_KEY = 'astro_studio_profiles_v2';
 const STORAGE_THREADS_KEY = 'astro_studio_threads_v2';
@@ -95,10 +99,13 @@ function createInitialDraftThread(profile: AstroProfile | null): AstroThread {
 }
 
 function deriveThreadSubjectTitle(
-  thread: Pick<AstroThread, 'title' | 'isCustomTitle' | 'cards' | 'narrativeWindow' | 'futureWindow'>
+  thread: Pick<
+    AstroThread,
+    'title' | 'isCustomTitle' | 'isImported' | 'cards' | 'narrativeWindow' | 'futureWindow'
+  >
 ): string {
   const existing = typeof thread.title === 'string' ? thread.title.trim() : '';
-  if (thread.isCustomTitle && existing) {
+  if ((thread.isCustomTitle || thread.isImported) && existing) {
     return existing;
   }
   const cardSubjects = (thread.cards || [])
@@ -115,6 +122,11 @@ function deriveThreadSubjectTitle(
 
 function resolveThreadProvider(thread: AstroThread): LlmProvider | null {
   if (thread.primaryProvider) return thread.primaryProvider;
+  if (thread.isImported) {
+    if (thread.importedSource === 'claude') return 'fable';
+    if (thread.importedSource === 'gemini') return 'gemini';
+    return null;
+  }
   const modelStr = (thread.primaryModel || '').toLowerCase();
   if (/claude|fable|anthropic|palm/.test(modelStr)) return 'fable';
   if (/gemini/.test(modelStr)) return 'gemini';
@@ -142,13 +154,14 @@ function normalizeThread(thread: AstroThread): AstroThread {
   const looksAutoOrBlank =
     !currentTitle || currentTitle === 'New Thread' || currentTitle.includes(' → ');
   const resolvedTitle =
-    thread.isCustomTitle && currentTitle
+    (thread.isCustomTitle || thread.isImported) && currentTitle
       ? currentTitle
       : hasCardSubject && looksAutoOrBlank
       ? deriveThreadSubjectTitle(thread)
       : currentTitle || deriveThreadSubjectTitle(thread);
   const hasReading = Boolean(
-    thread.overallSynthesis ||
+    thread.isImported ||
+      thread.overallSynthesis ||
       thread.privateOverallSynthesis ||
       thread.cards?.some((c) => Boolean(c.reading || c.privateReading)) ||
       (thread.messages && thread.messages.length > 0)
@@ -289,6 +302,7 @@ export default function App() {
   const [showFullPromptPreview, setShowFullPromptPreview] = useState(false);
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
   const [editingThreadTitle, setEditingThreadTitle] = useState('');
+  const [rightImportOpen, setRightImportOpen] = useState(true);
 
   useEffect(() => {
     if (!isResizingSidebar) return;
@@ -550,6 +564,16 @@ export default function App() {
     );
   }, [savedThreads, activeProfile, profiles]);
 
+  const normalThreads = useMemo(
+    () => profileThreads.filter((t) => !t.isImported),
+    [profileThreads]
+  );
+
+  const importedThreads = useMemo(
+    () => profileThreads.filter((t) => Boolean(t.isImported)),
+    [profileThreads]
+  );
+
   const fullConsultingPrompt = useMemo(() => {
     if (!activeProfile) return null;
     return buildAnalyzePromptParts({
@@ -754,8 +778,43 @@ export default function App() {
     }
     void persistThreads((prev) => prev.filter((t) => t.id !== id));
     if (activeThread.id === id) {
-      handleStartNewThread();
+      resetThreadFlow(activeProfile);
     }
+  };
+
+  const handleImportReport = (params: {
+    rawContent: string;
+    fileName?: string;
+    preferredSource: ImportedSourceSystem | 'auto';
+    customTitle?: string;
+  }) => {
+    const parsed = parseImportedReport(params.rawContent, {
+      fileName: params.fileName,
+      preferredSource: params.preferredSource,
+      customTitle: params.customTitle,
+      profileId: activeProfile?.id || '',
+      personId: activeProfile?.personId,
+      defaultNarrativeWindow: activeThread.narrativeWindow,
+      defaultFutureWindow: activeThread.futureWindow,
+    });
+
+    const saved = upsertSavedThread(parsed.thread, activeProfile);
+    setActiveThread(saved);
+    setPastSet(true);
+    setFutureSet(true);
+    setAnalyzeError(null);
+    setTimelineBuildError(null);
+    setPrivateLlmError(null);
+    setFollowUpWindowError(null);
+    setChatError(null);
+    setFailedChatRequest(null);
+
+    return {
+      title: saved.title,
+      format: parsed.detectedFormat,
+      source: parsed.detectedSource,
+      matchedFields: parsed.matchedFields,
+    };
   };
 
   const handleStartRenameThread = (e: React.MouseEvent, thread: AstroThread) => {
@@ -1718,151 +1777,304 @@ export default function App() {
           </button>
         </div>
 
-        {/* Submitted Threads List */}
-        <div className="flex-1 overflow-y-auto px-2.5 py-3 space-y-1">
-          <div className="px-2 pb-1.5 flex items-center justify-between text-[11px] font-medium text-[#7D8596]">
-            <span>Threads</span>
-            <span className="font-mono tabular-nums">{profileThreads.length}</span>
+        {/* Submitted Threads & Imported Threads Lists */}
+        <div className="flex-1 overflow-y-auto px-2.5 py-3 space-y-4">
+          {/* Normal Threads */}
+          <div className="space-y-1">
+            <div className="px-2 pb-1.5 flex items-center justify-between text-[11px] font-medium text-[#7D8596]">
+              <span>Threads</span>
+              <span className="font-mono tabular-nums">{normalThreads.length}</span>
+            </div>
+
+            {normalThreads.length === 0 ? (
+              <div className="px-2.5 py-5 text-center border border-dashed border-white/12 bg-white/[0.02] backdrop-blur-md rounded-xl mx-1">
+                <p className="text-xs text-[#98A0B2] leading-relaxed">
+                  {activeProfile
+                    ? 'Set your past & future periods, submit 1 Magic Card, and each reading lands here.'
+                    : 'Create a profile first to start logging threads.'}
+                </p>
+              </div>
+            ) : (
+              normalThreads.map((t) => {
+                const isSelected = activeThread.id === t.id;
+                const isEditingThis = editingThreadId === t.id;
+                const provider = resolveThreadProvider(t);
+                const dt = new Date(t.submittedAt || t.createdAt);
+                const dateStr = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                const timeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                return (
+                  <div
+                    key={t.id}
+                    onClick={() => {
+                      if (!isEditingThis) handleSelectSavedThread(t);
+                    }}
+                    className={`group cursor-pointer rounded-xl px-2.5 py-2.5 transition-all border ${
+                      isSelected
+                        ? 'bg-white/[0.09] border-white/20 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'
+                        : 'bg-transparent border-transparent hover:bg-white/[0.045] hover:border-white/[0.08]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1.5">
+                      {isEditingThis ? (
+                        <div
+                          className="flex items-center gap-1 flex-1 min-w-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="text"
+                            autoFocus
+                            value={editingThreadTitle}
+                            onChange={(e) => setEditingThreadTitle(e.target.value)}
+                            onFocus={(e) => e.currentTarget.select()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleCommitRenameThread(t.id);
+                              } else if (e.key === 'Escape') {
+                                e.preventDefault();
+                                handleCancelRenameThread(e);
+                              }
+                            }}
+                            onBlur={() => handleCommitRenameThread(t.id)}
+                            aria-label="Edit thread name"
+                            className="flex-1 min-w-0 bg-white/[0.08] border border-[#D4A853]/70 rounded-md px-2 py-0.5 text-xs font-medium text-[#EDEFF5] outline-none"
+                          />
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCommitRenameThread(t.id);
+                            }}
+                            title="Save thread name"
+                            aria-label="Save thread name"
+                            className="p-1 text-emerald-400 hover:text-emerald-300 rounded transition-colors shrink-0"
+                          >
+                            <Check className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={handleCancelRenameThread}
+                            title="Cancel rename"
+                            aria-label="Cancel rename"
+                            className="p-1 text-[#7D8596] hover:text-[#EDEFF5] rounded transition-colors shrink-0"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            {provider && (
+                              <ProviderIcon
+                                provider={provider}
+                                model={t.primaryModel}
+                                className="w-3.5 h-3.5"
+                              />
+                            )}
+                            <p
+                              className={`text-xs font-medium leading-snug truncate ${
+                                isSelected ? 'text-[#EDEFF5]' : 'text-[#C8CEDB]'
+                              }`}
+                              title={t.title}
+                            >
+                              {t.title}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => handleStartRenameThread(e, t)}
+                              className="opacity-45 group-hover:opacity-100 text-[#7D8596] hover:text-[#D4A853] p-0.5 rounded transition-opacity shrink-0"
+                              title="Edit thread name"
+                              aria-label="Edit thread name"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteThread(e, t.id)}
+                              className="opacity-45 group-hover:opacity-100 text-[#7D8596] hover:text-red-400 p-0.5 rounded transition-opacity shrink-0"
+                              title="Delete thread"
+                              aria-label="Delete thread"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] font-mono tabular-nums text-[#7D8596] mt-1">
+                      <span>{dateStr}</span>
+                      <span>·</span>
+                      <span>{timeStr}</span>
+                      <span>·</span>
+                      <span className="text-[#D4A853]/85">
+                        {t.cards.length} {t.cards.length === 1 ? 'card' : 'cards'}
+                      </span>
+                      {t.step === 'narrative' && (
+                        <>
+                          <span>·</span>
+                          <span className="text-[#98A0B2]">Draft</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
 
-          {profileThreads.length === 0 ? (
-            <div className="px-2.5 py-6 text-center border border-dashed border-white/12 bg-white/[0.02] backdrop-blur-md rounded-xl mx-1">
-              <p className="text-xs text-[#98A0B2] leading-relaxed">
-                {activeProfile
-                  ? 'Set your past & future periods, submit 1 Magic Card, and each reading lands here.'
-                  : 'Create a profile first to start logging threads.'}
-              </p>
+          {/* Imported Threads (below normal threads) */}
+          <div className="border-t border-white/[0.08] pt-3 space-y-1">
+            <div className="px-2 pb-1.5 flex items-center justify-between text-[11px] font-medium text-[#7D8596]">
+              <span>Imported Threads</span>
+              <span className="font-mono tabular-nums">{importedThreads.length}</span>
             </div>
-          ) : (
-            profileThreads.map((t) => {
-              const isSelected = activeThread.id === t.id;
-              const isEditingThis = editingThreadId === t.id;
-              const provider = resolveThreadProvider(t);
-              const dt = new Date(t.submittedAt || t.createdAt);
-              const dateStr = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-              const timeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-              return (
-                <div
-                  key={t.id}
-                  onClick={() => {
-                    if (!isEditingThis) handleSelectSavedThread(t);
-                  }}
-                  className={`group cursor-pointer rounded-xl px-2.5 py-2.5 transition-all border ${
-                    isSelected
-                      ? 'bg-white/[0.09] border-white/20 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'
-                      : 'bg-transparent border-transparent hover:bg-white/[0.045] hover:border-white/[0.08]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-1.5">
-                    {isEditingThis ? (
-                      <div
-                        className="flex items-center gap-1 flex-1 min-w-0"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <input
-                          type="text"
-                          autoFocus
-                          value={editingThreadTitle}
-                          onChange={(e) => setEditingThreadTitle(e.target.value)}
-                          onFocus={(e) => e.currentTarget.select()}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
+
+            {importedThreads.length === 0 ? (
+              <div className="px-2.5 py-4 text-center border border-dashed border-white/10 bg-white/[0.015] rounded-xl mx-1">
+                <p className="text-[11px] text-[#7D8596] leading-relaxed">
+                  Upload third-party <span className="font-mono text-[#98A0B2]">.md</span> or{' '}
+                  <span className="font-mono text-[#98A0B2]">.html</span> files on the right panel.
+                </p>
+              </div>
+            ) : (
+              importedThreads.map((t) => {
+                const isSelected = activeThread.id === t.id;
+                const isEditingThis = editingThreadId === t.id;
+                const dt = new Date(t.submittedAt || t.createdAt);
+                const dateStr = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                const timeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const sourceName =
+                  t.importedSource === 'claude'
+                    ? 'Claude'
+                    : t.importedSource === 'chatgpt'
+                    ? 'ChatGPT'
+                    : t.importedSource === 'gemini'
+                    ? 'Gemini'
+                    : 'External';
+                return (
+                  <div
+                    key={t.id}
+                    onClick={() => {
+                      if (!isEditingThis) handleSelectSavedThread(t);
+                    }}
+                    className={`group cursor-pointer rounded-xl px-2.5 py-2.5 transition-all border ${
+                      isSelected
+                        ? 'bg-white/[0.09] border-white/20 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'
+                        : 'bg-transparent border-transparent hover:bg-white/[0.045] hover:border-white/[0.08]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1.5">
+                      {isEditingThis ? (
+                        <div
+                          className="flex items-center gap-1 flex-1 min-w-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="text"
+                            autoFocus
+                            value={editingThreadTitle}
+                            onChange={(e) => setEditingThreadTitle(e.target.value)}
+                            onFocus={(e) => e.currentTarget.select()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleCommitRenameThread(t.id);
+                              } else if (e.key === 'Escape') {
+                                e.preventDefault();
+                                handleCancelRenameThread(e);
+                              }
+                            }}
+                            onBlur={() => handleCommitRenameThread(t.id)}
+                            aria-label="Edit imported thread name"
+                            className="flex-1 min-w-0 bg-white/[0.08] border border-[#D4A853]/70 rounded-md px-2 py-0.5 text-xs font-medium text-[#EDEFF5] outline-none"
+                          />
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={(e) => {
+                              e.stopPropagation();
                               handleCommitRenameThread(t.id);
-                            } else if (e.key === 'Escape') {
-                              e.preventDefault();
-                              handleCancelRenameThread(e);
-                            }
-                          }}
-                          onBlur={() => handleCommitRenameThread(t.id)}
-                          aria-label="Edit thread name"
-                          className="flex-1 min-w-0 bg-white/[0.08] border border-[#D4A853]/70 rounded-md px-2 py-0.5 text-xs font-medium text-[#EDEFF5] outline-none"
-                        />
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCommitRenameThread(t.id);
-                          }}
-                          title="Save thread name"
-                          aria-label="Save thread name"
-                          className="p-1 text-emerald-400 hover:text-emerald-300 rounded transition-colors shrink-0"
-                        >
-                          <Check className="w-3 h-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={handleCancelRenameThread}
-                          title="Cancel rename"
-                          aria-label="Cancel rename"
-                          className="p-1 text-[#7D8596] hover:text-[#EDEFF5] rounded transition-colors shrink-0"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                          {provider && (
+                            }}
+                            title="Save thread name"
+                            aria-label="Save thread name"
+                            className="p-1 text-emerald-400 hover:text-emerald-300 rounded transition-colors shrink-0"
+                          >
+                            <Check className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={handleCancelRenameThread}
+                            title="Cancel rename"
+                            aria-label="Cancel rename"
+                            className="p-1 text-[#7D8596] hover:text-[#EDEFF5] rounded transition-colors shrink-0"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
                             <ProviderIcon
-                              provider={provider}
+                              importedSource={t.importedSource || 'other'}
+                              provider={t.primaryProvider}
                               model={t.primaryModel}
                               className="w-3.5 h-3.5"
                             />
-                          )}
-                          <p
-                            className={`text-xs font-medium leading-snug truncate ${
-                              isSelected ? 'text-[#EDEFF5]' : 'text-[#C8CEDB]'
-                            }`}
-                            title={t.title}
-                          >
-                            {t.title}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={(e) => handleStartRenameThread(e, t)}
-                            className="opacity-45 group-hover:opacity-100 text-[#7D8596] hover:text-[#D4A853] p-0.5 rounded transition-opacity shrink-0"
-                            title="Edit thread name"
-                            aria-label="Edit thread name"
-                          >
-                            <Pencil className="w-3 h-3" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => handleDeleteThread(e, t.id)}
-                            className="opacity-45 group-hover:opacity-100 text-[#7D8596] hover:text-red-400 p-0.5 rounded transition-opacity shrink-0"
-                            title="Delete thread"
-                            aria-label="Delete thread"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </>
-                    )}
+                            <p
+                              className={`text-xs font-medium leading-snug truncate ${
+                                isSelected ? 'text-[#EDEFF5]' : 'text-[#C8CEDB]'
+                              }`}
+                              title={t.title}
+                            >
+                              {t.title}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => handleStartRenameThread(e, t)}
+                              className="opacity-45 group-hover:opacity-100 text-[#7D8596] hover:text-[#D4A853] p-0.5 rounded transition-opacity shrink-0"
+                              title="Edit thread name"
+                              aria-label="Edit thread name"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteThread(e, t.id)}
+                              className="opacity-45 group-hover:opacity-100 text-[#7D8596] hover:text-red-400 p-0.5 rounded transition-opacity shrink-0"
+                              title="Delete thread"
+                              aria-label="Delete thread"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] font-mono tabular-nums text-[#7D8596] mt-1">
+                      <span>{dateStr}</span>
+                      <span>·</span>
+                      <span>{timeStr}</span>
+                      <span>·</span>
+                      <span className="text-[#D4A853]/85">{sourceName}</span>
+                      {t.importFormat && (
+                        <>
+                          <span>·</span>
+                          <span className="uppercase">{t.importFormat}</span>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 text-[10px] font-mono tabular-nums text-[#7D8596] mt-1">
-                    <span>{dateStr}</span>
-                    <span>·</span>
-                    <span>{timeStr}</span>
-                    <span>·</span>
-                    <span className="text-[#D4A853]/85">
-                      {t.cards.length} {t.cards.length === 1 ? 'card' : 'cards'}
-                    </span>
-                    {t.step === 'narrative' && (
-                      <>
-                        <span>·</span>
-                        <span className="text-[#98A0B2]">Draft</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          )}
+                );
+              })
+            )}
+          </div>
         </div>
 
         {/* Footer: Active LLM Adapter & Natal Load */}
@@ -1900,7 +2112,9 @@ export default function App() {
         {/* Minimal Clean Top Bar */}
         <header className="h-12 shrink-0 border-b border-white/[0.09] px-6 flex items-center justify-between gap-3 bg-white/[0.03] backdrop-blur-2xl shadow-[inset_0_-1px_0_rgba(255,255,255,0.03)]">
           <span className="text-xs font-medium text-[#EDEFF5] truncate">
-            {activeProfile
+            {activeThread.isImported && activeThread.step === 'reading'
+              ? activeThread.title
+              : activeProfile
               ? activeThread.step === 'reading'
                 ? activeThread.title
                 : activeThread.title && activeThread.title !== 'New Thread'
@@ -1908,23 +2122,72 @@ export default function App() {
                 : `${activeProfile.name} (${activeProfile.personId})`
               : 'Profile Setup Required'}
           </span>
-          {activeProfile && activeThread.step === 'reading' && (
+          <div className="flex items-center gap-2 shrink-0">
+            {(activeProfile || activeThread.isImported) && activeThread.step === 'reading' && (
+              <button
+                type="button"
+                onClick={(e) => handleDeleteThread(e, activeThread.id)}
+                title="Delete thread"
+                className="px-2.5 py-1 rounded-lg border border-white/12 bg-white/[0.04] backdrop-blur-md hover:border-red-400/40 hover:bg-red-500/15 text-[11px] text-[#98A0B2] hover:text-red-200 inline-flex items-center gap-1.5 transition-colors shrink-0"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>Delete Thread</span>
+              </button>
+            )}
             <button
               type="button"
-              onClick={(e) => handleDeleteThread(e, activeThread.id)}
-              title="Delete thread"
-              className="px-2.5 py-1 rounded-lg border border-white/12 bg-white/[0.04] backdrop-blur-md hover:border-red-400/40 hover:bg-red-500/15 text-[11px] text-[#98A0B2] hover:text-red-200 inline-flex items-center gap-1.5 transition-colors shrink-0"
+              onClick={() => setRightImportOpen((v) => !v)}
+              title="Toggle right-hand MD/HTML upload panel"
+              className={`px-2.5 py-1 rounded-lg border text-[11px] font-medium inline-flex items-center gap-1.5 transition-colors shrink-0 ${
+                rightImportOpen
+                  ? 'border-[#D4A853]/50 bg-[#D4A853]/15 text-[#D4A853]'
+                  : 'border-white/12 bg-white/[0.04] hover:bg-white/[0.08] text-[#C8CEDB]'
+              }`}
             >
-              <Trash2 className="w-3 h-3" />
-              <span>Delete Thread</span>
+              <Upload className="w-3 h-3" />
+              <span>Upload MD</span>
             </button>
-          )}
+          </div>
         </header>
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto px-6 py-6">
           <div className="max-w-4xl mx-auto space-y-6">
-            {!activeProfile ? (
+            {activeThread.isImported && activeThread.step === 'reading' ? (
+              <OpenedCardSpread
+                thread={activeThread}
+                hasActiveProfile={Boolean(activeProfile)}
+                isSendingChat={isSendingChat}
+                chatError={chatError}
+                onSendChat={handleSendChat}
+                onRetryChat={handleRetryChat}
+                canRetryChat={
+                  Boolean(failedChatRequest) ||
+                  activeThread.messages.some((m) => m.role === 'user')
+                }
+                isPostingToPrivateLlm={isPostingToPrivateLlm}
+                privateLlmError={privateLlmError}
+                onPostToPrivateLlm={handlePostToPrivateLlm}
+                onDeletePrivateReading={handleDeletePrivateReading}
+                isUpdatingFutureWindow={isUpdatingFollowUpWindow}
+                futureWindowError={followUpWindowError}
+                onUpdateFutureWindow={handleUpdateFollowUpFutureWindow}
+                isBuildingTimeline={buildingTimelineThreadId === activeThread.id}
+                timelineBuildError={timelineBuildError}
+                onRetryTimelineBuild={(cardId, sourceTab) =>
+                  runPrivateTimelineDecision(activeThread, cardId, sourceTab)
+                }
+                onApplyManualTimelineJson={(cardId, sourceTab, data) =>
+                  attachGrahaTimelineToThread(
+                    activeThread.id,
+                    cardId,
+                    sourceTab,
+                    data,
+                    activeThread
+                  )
+                }
+              />
+            ) : !activeProfile ? (
               <div className="bg-white/[0.04] backdrop-blur-2xl border border-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_20px_50px_rgba(0,0,0,0.4)] rounded-2xl p-8 text-center space-y-4 mt-8">
                 <h1 className="text-lg font-semibold text-[#EDEFF5]">
                   Set Up Your Profile (personId) &amp; Natal Dump
@@ -2322,6 +2585,7 @@ export default function App() {
 
         {/* BOTTOM COMPLETE-PROMPT BAR (CONSULTING STATE + READING INSPECTOR) */}
         {activeProfile &&
+          !activeThread.isImported &&
           fullConsultingPrompt &&
           (isAnalyzing || activeThread.step === 'reading') && (
             <div className="shrink-0 border-t border-white/[0.09] bg-white/[0.035] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
@@ -2412,6 +2676,12 @@ export default function App() {
             </div>
           )}
       </main>
+
+      <RightImportPanel
+        isOpen={rightImportOpen}
+        onClose={() => setRightImportOpen(false)}
+        onImportContent={handleImportReport}
+      />
 
       {modalMode && (
         <NatalConfigModal

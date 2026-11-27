@@ -5,6 +5,7 @@ import {
   BookOpen,
   Calendar,
   CalendarClock,
+  Code2,
   Cpu,
   Layers,
   RotateCw,
@@ -20,9 +21,11 @@ import {
 } from '../data/sampleProfiles';
 import { getCardTheme } from '../data/cardThemes';
 import { AstroReasoningModal } from './AstroReasoningModal';
+import { ProviderIcon } from './ProviderIcon';
 
 interface OpenedCardSpreadProps {
   thread: AstroThread;
+  hasActiveProfile?: boolean;
   isSendingChat: boolean;
   chatError: string | null;
   onSendChat: (message: string, targetProvider?: LlmProvider) => void;
@@ -45,8 +48,94 @@ interface OpenedCardSpreadProps {
   ) => void;
 }
 
+function renderInlineBold(text: string): React.ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, idx) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      return (
+        <strong key={idx} className="font-semibold text-[#EDEFF5]">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return <React.Fragment key={idx}>{part}</React.Fragment>;
+  });
+}
+
+function renderFormattedMarkdownText(text: string): React.ReactNode {
+  const lines = text.split(/\r?\n/);
+  const blocks: React.ReactNode[] = [];
+  let listItems: string[] = [];
+  let paraLines: string[] = [];
+
+  const flushPara = () => {
+    if (paraLines.length === 0) return;
+    const joined = paraLines.join(' ').trim();
+    if (joined) {
+      blocks.push(
+        <p key={`p-${blocks.length}`} className="text-xs leading-relaxed text-[#D8DCE6]">
+          {renderInlineBold(joined)}
+        </p>
+      );
+    }
+    paraLines = [];
+  };
+
+  const flushList = () => {
+    if (listItems.length === 0) return;
+    blocks.push(
+      <ul key={`ul-${blocks.length}`} className="space-y-1.5 pl-4 list-disc text-xs leading-relaxed text-[#D8DCE6]">
+        {listItems.map((item, idx) => (
+          <li key={idx}>{renderInlineBold(item)}</li>
+        ))}
+      </ul>
+    );
+    listItems = [];
+  };
+
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim();
+    if (!trimmed) {
+      flushPara();
+      flushList();
+      continue;
+    }
+
+    const headingMatch = trimmed.match(/^#{1,6}\s+(.+)$/);
+    if (headingMatch) {
+      flushPara();
+      flushList();
+      blocks.push(
+        <h5
+          key={`h-${blocks.length}`}
+          className="text-xs font-semibold text-[#EDEFF5] pt-1"
+        >
+          {renderInlineBold(headingMatch[1].trim())}
+        </h5>
+      );
+      continue;
+    }
+
+    const bulletMatch = trimmed.match(/^(?:[-*•]|\d+\.)\s+(.+)$/);
+    if (bulletMatch) {
+      flushPara();
+      listItems.push(bulletMatch[1].trim());
+      continue;
+    }
+
+    flushList();
+    paraLines.push(trimmed);
+  }
+
+  flushPara();
+  flushList();
+
+  return <div className="space-y-2.5">{blocks}</div>;
+}
+
 export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
   thread,
+  hasActiveProfile = true,
   isSendingChat,
   chatError,
   onSendChat,
@@ -68,6 +157,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
   const [activeTab, setActiveTab] = useState<'primary' | 'private'>('primary');
   const [draftMessage, setDraftMessage] = useState('');
   const [reasoningModalOpen, setReasoningModalOpen] = useState(false);
+  const [showRawImportedSource, setShowRawImportedSource] = useState(false);
 
   // Follow-up Future Timeline editor state (only Future Target period can be changed, not Past Narrative)
   const [isEditingFuture, setIsEditingFuture] = useState(false);
@@ -78,6 +168,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
     setSelectedIndex(0);
     setActiveTab('primary');
     setIsEditingFuture(false);
+    setShowRawImportedSource(false);
     setDraftFutureStart(thread.futureWindow.startMonth);
     setDraftFutureEnd(thread.futureWindow.endMonth);
   }, [thread.id]);
@@ -111,10 +202,15 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
   const hasPrivateResult = Boolean(
     thread.privateOverallSynthesis || thread.cards.some((c) => Boolean(c.privateReading))
   );
-  const showTabs = hasPrivateResult || isPostingToPrivateLlm || Boolean(privateLlmError);
+  const isImportedThread = Boolean(thread.isImported);
+
+  const showTabs =
+    !isImportedThread &&
+    (hasPrivateResult || isPostingToPrivateLlm || Boolean(privateLlmError));
 
   // Show the small Private LLM icon ONLY when on primary non-Ollama tab and Private LLM has not yet been explored
   const showPrivateTriggerIcon =
+    !isImportedThread &&
     activeTab === 'primary' &&
     primaryProvider !== 'ollama' &&
     !hasPrivateResult &&
@@ -125,16 +221,22 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
   const activeReading =
     activeTab === 'private' ? activeCard?.privateReading : activeCard?.reading;
 
-  const isLocalEngine =
-    activeTab === 'private' || primaryProvider === 'ollama';
-  const predictedModelName =
-    activeTab === 'private'
-      ? thread.privateModel ||
-        activeReading?.grahaTimeline?.generatedByModel ||
-        'Ollama'
-      : thread.primaryModel ||
-        activeReading?.grahaTimeline?.generatedByModel ||
-        primaryTabLabel;
+  const predictedModelName = isImportedThread
+    ? thread.primaryModel ||
+      (thread.importedSource === 'claude'
+        ? 'Claude (Imported)'
+        : thread.importedSource === 'chatgpt'
+        ? 'ChatGPT (Imported)'
+        : thread.importedSource === 'gemini'
+        ? 'Gemini (Imported)'
+        : 'External Report')
+    : activeTab === 'private'
+    ? thread.privateModel ||
+      activeReading?.grahaTimeline?.generatedByModel ||
+      'Ollama'
+    : thread.primaryModel ||
+      activeReading?.grahaTimeline?.generatedByModel ||
+      primaryTabLabel;
 
   const draftSpanMonths = monthDiffInclusive(draftFutureStart, draftFutureEnd);
   const isDraftFutureValid = draftSpanMonths >= 1 && draftSpanMonths <= 3;
@@ -277,38 +379,163 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#8E95A5]">
               <div className="flex flex-wrap items-center gap-2 min-w-0">
                 <h2 className="text-sm font-semibold text-[#D4A853]">
-                  {activeTab === 'private' ? 'Period Outlook · Private LLM' : 'Period Outlook'}
+                  {isImportedThread
+                    ? 'Imported Period Outlook'
+                    : activeTab === 'private'
+                    ? 'Period Outlook · Private LLM'
+                    : 'Period Outlook'}
                 </h2>
-                <span aria-hidden="true">·</span>
-                <span className="tabular-nums">{pastLabel}</span>
-                <ArrowRight className="w-3 h-3 text-[#6C7384]" />
-                <span className="text-[#EDEFF5] font-medium tabular-nums">{futureLabel}</span>
-                <span aria-hidden="true">·</span>
-                <span className="tabular-nums">
-                  {thread.cards.length} {thread.cards.length === 1 ? 'Card' : 'Cards'}
-                </span>
+                {isImportedThread ? (
+                  <>
+                    {thread.importFormat && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span className="font-mono uppercase text-[#EDEFF5]">
+                          {thread.importFormat}
+                        </span>
+                      </>
+                    )}
+                    {thread.importedFileName && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span className="font-mono truncate max-w-[220px]">
+                          {thread.importedFileName}
+                        </span>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span className="tabular-nums">{pastLabel}</span>
+                    <ArrowRight className="w-3 h-3 text-[#6C7384]" />
+                    <span className="text-[#EDEFF5] font-medium tabular-nums">{futureLabel}</span>
+                    <span aria-hidden="true">·</span>
+                    <span className="tabular-nums">
+                      {thread.cards.length} {thread.cards.length === 1 ? 'Card' : 'Cards'}
+                    </span>
+                  </>
+                )}
               </div>
 
               <div
                 title={`Predicted by ${predictedModelName}`}
                 className="inline-flex items-center gap-1.5 text-[11px] font-mono text-[#B9C0D0] whitespace-nowrap shrink-0 ml-auto"
               >
-                {isLocalEngine ? (
-                  <Cpu className="w-3.5 h-3.5 text-[#D4A853]" />
-                ) : (
-                  <Sparkles className="w-3.5 h-3.5 text-[#D4A853]" />
-                )}
+                <ProviderIcon
+                  provider={activeTab === 'private' ? 'ollama' : primaryProvider}
+                  importedSource={isImportedThread ? thread.importedSource : undefined}
+                  model={predictedModelName}
+                  className="w-3.5 h-3.5"
+                />
                 <span>{predictedModelName}</span>
               </div>
             </div>
 
             {activeSynthesis && (
-              <p className="text-xs leading-relaxed text-[#D8DCE6]">{activeSynthesis}</p>
+              <div className="text-xs leading-relaxed text-[#D8DCE6]">
+                {isImportedThread
+                  ? renderFormattedMarkdownText(activeSynthesis)
+                  : activeSynthesis}
+              </div>
             )}
           </div>
 
-          {/* Card Selector (legacy multi-card only) + Focused Real-World Reasoning Card */}
-          {thread.cards.length > 0 && activeCard && activeTheme && ActiveDomainIcon && (
+          {isImportedThread ? (
+            /* IMPORTED THIRD-PARTY REPORT VIEW — NO MAGIC CARDS */
+            <div className="space-y-4">
+              {activeReading && (
+                <div className="rounded-2xl border border-white/12 bg-white/[0.035] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_18px_44px_rgba(0,0,0,0.34)] p-6 space-y-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
+                    <h3 className="text-sm font-semibold text-[#EDEFF5]">
+                      {thread.title}
+                    </h3>
+                    {activeReading.timingWindow && (
+                      <span className="text-xs font-mono tabular-nums text-[#D4A853]">
+                        Timing: {activeReading.timingWindow}
+                      </span>
+                    )}
+                  </div>
+
+                  {activeReading.verdictSummary && (
+                    <div className="space-y-2">
+                      <h4 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#D4A853]">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Realistic Outlook</span>
+                      </h4>
+                      {renderFormattedMarkdownText(activeReading.verdictSummary)}
+                    </div>
+                  )}
+
+                  {activeReading.guidance && (
+                    <div className="border-t border-white/10 pt-4 space-y-2">
+                      <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[#D4A853]">
+                        Practical Guidance
+                      </h4>
+                      {renderFormattedMarkdownText(activeReading.guidance)}
+                    </div>
+                  )}
+
+                  {thread.importedSections && thread.importedSections.length > 0 && (
+                    <div className="border-t border-white/10 pt-4 space-y-4">
+                      {thread.importedSections.map((sec, idx) => (
+                        <div key={`${sec.heading}-${idx}`} className="space-y-1.5">
+                          <h4 className="text-xs font-semibold text-[#EDEFF5]">
+                            {sec.heading}
+                          </h4>
+                          {renderFormattedMarkdownText(sec.content)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                {thread.importedRawContent ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowRawImportedSource((v) => !v)}
+                    className="px-3.5 py-2 rounded-xl border border-white/12 bg-white/[0.03] hover:bg-white/[0.07] text-xs font-medium text-[#C8CEDB] inline-flex items-center gap-1.5 transition-colors"
+                  >
+                    <Code2 className="w-3.5 h-3.5 text-[#98A0B2]" />
+                    <span>
+                      {showRawImportedSource
+                        ? 'Hide Uploaded File'
+                        : `View Uploaded ${(thread.importFormat || 'md').toUpperCase()}`}
+                    </span>
+                  </button>
+                ) : (
+                  <div />
+                )}
+
+                {activeReading?.planetaryTriggers && (
+                  <button
+                    type="button"
+                    onClick={() => setReasoningModalOpen(true)}
+                    title={
+                      activeReading.grahaTimeline
+                        ? 'Open 2D Astrological Reasoning Timeline'
+                        : 'Open Astrological Reasoning (click Visualize 2D Graph inside to plot)'
+                    }
+                    className="px-4 py-2 rounded-xl border text-xs font-medium inline-flex items-center gap-2 transition-colors backdrop-blur-md border-white/15 bg-white/[0.04] hover:bg-white/[0.08] text-[#D4A853]"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>Astrological Reasoning — Why This Outlook</span>
+                  </button>
+                )}
+              </div>
+
+              {showRawImportedSource && thread.importedRawContent && (
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                  <pre className="max-h-96 overflow-y-auto text-[11px] font-mono leading-relaxed text-[#C8CEDB] whitespace-pre-wrap break-words">
+                    {thread.importedRawContent}
+                  </pre>
+                </div>
+              )}
+            </div>
+          ) : thread.cards.length > 0 && activeCard && activeTheme && ActiveDomainIcon ? (
+            /* NORMAL THREAD: CARD DECK + FOCUSED REAL-WORLD REASONING CARD */
             <div className="space-y-4">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
                 {/* Left: Interactive Stacked Card Deck (only when multiple cards exist) */}
@@ -524,23 +751,26 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                 </div>
               </div>
             </div>
-          )}
+          ) : null}
         </>
       )}
 
       {/* Flowing Thread Follow-Up Conversation */}
+      {(!isImportedThread || hasActiveProfile) && (
       <div className="rounded-2xl border border-white/12 bg-white/[0.035] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.11),0_16px_42px_rgba(0,0,0,0.34)] p-5 space-y-4">
         <div className="border-b border-white/10 pb-3 flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-sm font-semibold text-[#EDEFF5]">Follow-Up Questions</h3>
 
-          <button
-            type="button"
-            onClick={() => setIsEditingFuture((v) => !v)}
-            className="px-2.5 py-1 rounded-lg border border-[#D4A853]/40 bg-[#D4A853]/12 hover:bg-[#D4A853]/22 backdrop-blur-md text-[11px] font-medium text-[#D4A853] inline-flex items-center gap-1.5 transition-colors"
-          >
-            <CalendarClock className="w-3.5 h-3.5" />
-            <span>Future: {futureLabel} · Change</span>
-          </button>
+          {!isImportedThread && (
+            <button
+              type="button"
+              onClick={() => setIsEditingFuture((v) => !v)}
+              className="px-2.5 py-1 rounded-lg border border-[#D4A853]/40 bg-[#D4A853]/12 hover:bg-[#D4A853]/22 backdrop-blur-md text-[11px] font-medium text-[#D4A853] inline-flex items-center gap-1.5 transition-colors"
+            >
+              <CalendarClock className="w-3.5 h-3.5" />
+              <span>Future: {futureLabel} · Change</span>
+            </button>
+          )}
         </div>
 
         {/* Editable Future Target Timeline */}
@@ -745,6 +975,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
           </button>
         </form>
       </div>
+      )}
 
       {/* SEPARATE WINDOW: 2D GRAHA INFLUENCE TIMELINE & VERBATIM REASONING */}
       {activeCard && activeTheme && activeReading && (
@@ -754,7 +985,13 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
           card={activeCard}
           reading={activeReading}
           theme={activeTheme}
-          engineLabel={activeTab === 'private' ? 'Private LLM' : primaryTabLabel}
+          engineLabel={
+            isImportedThread
+              ? predictedModelName
+              : activeTab === 'private'
+              ? 'Private LLM'
+              : primaryTabLabel
+          }
           pastLabel={pastLabel}
           futureLabel={futureLabel}
           isBuildingTimeline={isBuildingTimeline}

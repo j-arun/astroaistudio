@@ -489,15 +489,17 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
         {/* BODY */}
         {viewMode === 'text' ? (
           <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
-            <div
-              style={{ backgroundColor: COL_CARD, borderColor: COL_LN }}
-              className="rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-4 space-y-1.5"
-            >
-              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[#a39a8e]">
-                Question Evaluated
-              </h4>
-              <p className="text-xs font-medium leading-relaxed text-[#ece6dc]">{card.question}</p>
-            </div>
+            {card.question && card.question.trim() && (
+              <div
+                style={{ backgroundColor: COL_CARD, borderColor: COL_LN }}
+                className="rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-4 space-y-1.5"
+              >
+                <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[#a39a8e]">
+                  Question Evaluated
+                </h4>
+                <p className="text-xs font-medium leading-relaxed text-[#ece6dc]">{card.question}</p>
+              </div>
+            )}
 
             <div
               style={{ backgroundColor: COL_CARD, borderColor: 'rgba(212,168,83,0.35)' }}
