@@ -1,4 +1,4 @@
-import { stripDateOfBirth } from './promptBuilder';
+import { stripDateOfBirth } from './promptBuilder.ts';
 
 export interface GrahaExtractionPromptInput {
   domain: string;
@@ -40,9 +40,10 @@ export function anonymizeAstroText(rawText: string): string {
   return stripDateOfBirth(rawText)
     .replace(/PROFILE:\s*[^\n|]+(\|[^\n]*)?/gi, 'PROFILE: [REDACTED]')
     .replace(
-      /^(NAME|FULL NAME|DATE OF BIRTH|DOB|BIRTH DATE|BIRTH PLACE|PLACE OF BIRTH|TIME OF BIRTH|TOB|POB|LOCATION)\s*:.*$/gim,
-      '$1: [REDACTED]'
+      /^(PERSON[ \t_-]*ID|PROFILE[ \t_-]*ID|NAME|FULL[ \t_-]*NAME|DATE[ \t_-]*OF[ \t_-]*BIRTH|DOB|BIRTH[ \t_-]*DATE|BIRTH[ \t_-]*PLACE|PLACE[ \t_-]*OF[ \t_-]*BIRTH|TIME[ \t_-]*OF[ \t_-]*BIRTH|BIRTH[ \t_-]*TIME|TOB|POB|LOCATION)\s*:.*$/gim,
+      ''
     )
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 

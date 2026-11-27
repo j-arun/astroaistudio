@@ -23,33 +23,39 @@ export interface BuildAnalyzePromptParams {
 
 export function stripDateOfBirth(rawText: string): string {
   if (!rawText) return '';
-  const sensitiveLabel = String.raw`(?:date\s+of\s+birth|birth\s*date|d\.?\s*o\.?\s*b\.?|place\s+of\s+birth|birth\s*place|birthplace|birth\s*city|p\.?\s*o\.?\s*b\.?|(?:current\s+|native\s+)?age(?:\s*\([^)\r\n]*\))?|place)`;
+
+  // Remove bracketed birth profile / PII metadata section headers such as [BIRTH PROFILE & METADATA]
+  const sectionHeaderRegex =
+    /^[ \t]*\[[ \t]*(?:birth[ \t_-]*profile(?:[ \t]*(?:&|and)[ \t]*metadata)?|birth[ \t_-]*metadata|profile[ \t_-]*metadata|person[ \t_-]*metadata|birth[ \t_-]*details|personal[ \t_-]*(?:details|metadata|info))[ \t]*\][ \t]*(?:\r?\n|$)/gim;
+
+  const sensitiveLabel = String.raw`(?:date[ \t_-]*of[ \t_-]*birth|birth[ \t_-]*date|d\.?[ \t]*o\.?[ \t]*b\.?|time[ \t_-]*of[ \t_-]*birth|birth[ \t_-]*time|t\.?[ \t]*o\.?[ \t]*b\.?|place[ \t_-]*of[ \t_-]*birth|birth[ \t_-]*(?:place|city|location|town|country)|p\.?[ \t]*o\.?[ \t]*b\.?|person[ \t_-]*id|profile[ \t_-]*id|user[ \t_-]*id|client[ \t_-]*id|subject[ \t_-]*id|reg(?:istration)?(?:[ \t._-]*(?:no|num|number|id))?\.?|(?:full[ \t_-]*|profile[ \t_-]*|person[ \t_-]*|user[ \t_-]*|client[ \t_-]*|native[ \t_-]*|subject[ \t_-]*)?name|profile|(?:current[ \t]+|native[ \t]+)?age(?:\s*\([^)\r\n]*\))?|place|location|coordinates|latitude|longitude|timezone|gender|sex|email|phone)`;
   const bornDate = String.raw`born(?:[ \t]+on)?[ \t]*[:=]?[ \t]*(?:\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*[ \t]+\d{1,2},?[ \t]+\d{2,4}|\d{1,2}[ \t]+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*[ \t]+\d{2,4})`;
   const parenAge = String.raw`(?:current[ \t]+)?age[ \t]*(?:[:=]|[ \t]+-[ \t]+|[ \t]+)\d+[^)\r\n]*`;
 
   return rawText
+    .replace(sectionHeaderRegex, '')
     .replace(
       new RegExp(`[ \\t]*\\([ \\t]*(?:${sensitiveLabel}[ \\t]*(?:[:=]|[ \\t]+-[ \\t]+|[ \\t]+)[^)\\r\\n]+|${parenAge})\\)`, 'gi'),
       ''
     )
     .replace(
-      new RegExp(`[|;·][ \\t]*${sensitiveLabel}[ \\t]*(?::|=|[ \\t]+-[ \\t]+)[^|;·\\r\\n]+(?=[ \\t]*[|;·])`, 'gi'),
+      new RegExp(`[|;·][ \\t]*${sensitiveLabel}[ \\t]*(?::|=|[ \\t]+-[ \\t]+)[^|;·\\r\\n]*(?=[ \\t]*[|;·])`, 'gi'),
       ''
     )
     .replace(
-      new RegExp(`[ \\t]*[|;·][ \\t]*${sensitiveLabel}[ \\t]*(?::|=|[ \\t]+-[ \\t]+)[^|;·\\r\\n]+`, 'gi'),
+      new RegExp(`[ \\t]*[|;·][ \\t]*${sensitiveLabel}[ \\t]*(?::|=|[ \\t]+-[ \\t]+)[^|;·\\r\\n]*`, 'gi'),
       ''
     )
     .replace(
-      new RegExp(`,[ \\t]*${sensitiveLabel}[ \\t]*(?::|=|[ \\t]+-[ \\t]+)[^|;·,\\r\\n]+(?=[ \\t]*,[ \\t]*[A-Za-z][A-Za-z0-9 ._-]*:)`, 'gi'),
+      new RegExp(`,[ \\t]*${sensitiveLabel}[ \\t]*(?::|=|[ \\t]+-[ \\t]+)[^|;·,\\r\\n]*(?=[ \\t]*,[ \\t]*[A-Za-z][A-Za-z0-9 ._-]*:)`, 'gi'),
       ''
     )
     .replace(
-      new RegExp(`^([ \\t]*(?:[-*][ \\t]*)?)${sensitiveLabel}[ \\t]*(?::|=|[ \\t]+-[ \\t]+)[^|;·\\r\\n]+[ \\t]*[|;·][ \\t]*`, 'gim'),
+      new RegExp(`^([ \\t]*(?:[-*][ \\t]*)?)${sensitiveLabel}[ \\t]*(?::|=|[ \\t]+-[ \\t]+)[^|;·\\r\\n]*[ \\t]*[|;·][ \\t]*`, 'gim'),
       '$1'
     )
     .replace(
-      new RegExp(`^([ \\t]*(?:[-*][ \\t]*)?)${sensitiveLabel}[ \\t]*(?::|=|[ \\t]+-[ \\t]+)[^|;·,\\r\\n]+[ \\t]*,[ \\t]*(?=[A-Za-z][A-Za-z0-9 ._-]*:)`, 'gim'),
+      new RegExp(`^([ \\t]*(?:[-*][ \\t]*)?)${sensitiveLabel}[ \\t]*(?::|=|[ \\t]+-[ \\t]+)[^|;·,\\r\\n]*[ \\t]*,[ \\t]*(?=[A-Za-z][A-Za-z0-9 ._-]*:)`, 'gim'),
       '$1'
     )
     .replace(
@@ -63,8 +69,9 @@ export function stripDateOfBirth(rawText: string): string {
     .trim();
 }
 
+export const stripPiiMetadata = stripDateOfBirth;
+
 export function buildAnalyzePromptParts({
-  profileName,
   natalDump,
   narrativeWindow,
   cards,
@@ -75,7 +82,10 @@ export function buildAnalyzePromptParts({
   fullCombinedPrompt: string;
 } {
   const cleanNatalDump = stripDateOfBirth(natalDump);
-  const systemInstruction = `You are a master Jyotish (Vedic astrology) analyst powering a real-world scenario foresight workspace for ${profileName || 'the user'}.
+  const cleanPastTransitDump = stripDateOfBirth(narrativeWindow.transitDump || '');
+  const cleanFutureTransitDump = stripDateOfBirth(futureWindow.transitDump || '');
+
+  const systemInstruction = `You are a master Jyotish (Vedic astrology) analyst powering a real-world scenario foresight workspace for the user.
 Internally, perform your full astrological synthesis using all 3 folds:
 - FOLD 1 (SESSION NATAL BASELINE): Complete natal dump including D1-D144 divisional charts, Vimshottari Dasha-Bhukti-Antara, Moon Sign (Janma Rasi), and SAV/BAV Ashtakavarga bindus.
 - FOLD 2 (PAST CALIBRATION NARRATIVE): The past window (${narrativeWindow.startMonth} to ${narrativeWindow.endMonth}) with Gochara transits AND real dated life event cards that actually occurred. Calibrate how Dasha + Gochara + SAV/BAV physically manifested in real life.
@@ -108,14 +118,14 @@ ${cleanNatalDump}
 
 === FOLD 2: PAST NARRATIVE WINDOW (${narrativeWindow.startMonth} to ${narrativeWindow.endMonth}) ===
 PAST TRANSITS:
-${narrativeWindow.transitDump}
+${cleanPastTransitDump}
 
 PAST EVENT CARDS & QUESTIONS:
 ${cardsSummary}
 
 === FOLD 3: FUTURE TRANSIT WINDOW (${futureWindow.startMonth} to ${futureWindow.endMonth}) ===
 FUTURE TRANSITS:
-${futureWindow.transitDump}
+${cleanFutureTransitDump}
 
 Return JSON strictly matching:
 {

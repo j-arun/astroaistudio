@@ -1848,8 +1848,14 @@ async function startServer() {
       .join('\n');
 
     const cleanNatalDump = stripDateOfBirth(typeof natalDump === 'string' ? natalDump : '');
+    const cleanPastTransitDump = stripDateOfBirth(
+      typeof narrativeWindow?.transitDump === 'string' ? narrativeWindow.transitDump : ''
+    );
+    const cleanFutureTransitDump = stripDateOfBirth(
+      typeof futureWindow?.transitDump === 'string' ? futureWindow.transitDump : ''
+    );
 
-    const systemInstruction = `You are Astro AI Studio conducting a persistent multi-turn thread for ${profileName || 'the user'}.
+    const systemInstruction = `You are Astro AI Studio conducting a persistent multi-turn thread for the user.
 All 3 Context Folds remain permanently active for this entire thread:
 
 [FOLD 1 — SESSION NATAL BASELINE]
@@ -1857,13 +1863,13 @@ ${cleanNatalDump}
 
 [FOLD 2 — PAST CALIBRATION NARRATIVE: ${narrativeWindow?.startMonth} to ${narrativeWindow?.endMonth}]
 Transits:
-${narrativeWindow?.transitDump || 'N/A'}
+${cleanPastTransitDump || 'N/A'}
 
 Submitted Magic Cards:
 ${cardsContext}
 
 [FOLD 3 — FUTURE TRANSIT WINDOW: ${futureWindow?.startMonth} to ${futureWindow?.endMonth}]
-${futureWindow?.transitDump || 'N/A'}
+${cleanFutureTransitDump || 'N/A'}
 
 Answer follow-up questions in strictly realistic, grounded, real-world terms—describing practical possibilities, timing, and actions without mentioning astrology, planets, charts, houses, dasha, or transits unless the user explicitly asks for the astrological explanation. Keep answers clear, structured, and crisp.`;
 
