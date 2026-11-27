@@ -651,14 +651,6 @@ export default function App() {
       setActiveThread(completedThread);
       const withoutDup = savedThreads.filter((t) => t.id !== completedThread.id);
       persistThreads([completedThread, ...withoutDup]);
-
-      if (completedThread.cards[0]?.reading?.planetaryTriggers) {
-        void runPrivateTimelineDecision(
-          completedThread,
-          completedThread.cards[0].id,
-          'primary'
-        );
-      }
     } catch (err: unknown) {
       setAnalyzeError(
         err instanceof Error ? err.message : 'Unable to unfold readings. Please try again.'
@@ -880,14 +872,6 @@ export default function App() {
         nextSaved.unshift(updatedThread);
       }
       persistThreads(nextSaved);
-
-      if (updatedThread.cards[0]?.privateReading?.planetaryTriggers) {
-        void runPrivateTimelineDecision(
-          updatedThread,
-          updatedThread.cards[0].id,
-          'private'
-        );
-      }
     } catch (err: unknown) {
       setPrivateLlmError(
         err instanceof Error ? err.message : 'Unable to reach Private LLM (Ollama).'

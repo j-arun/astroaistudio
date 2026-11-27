@@ -503,25 +503,27 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                     </motion.div>
                   </AnimatePresence>
 
-                  {/* Separate Astrological Reasoning Button Below the Reasoning Card */}
+                  {/* Separate Astrological Reasoning Button Below the Reasoning Card (On-Demand Request 2 on Click) */}
                   {activeReading?.planetaryTriggers && (
                     <div className="flex items-center justify-end">
                       <button
                         type="button"
-                        disabled={isBuildingTimeline}
-                        onClick={() => setReasoningModalOpen(true)}
+                        onClick={() => {
+                          setReasoningModalOpen(true);
+                          if (!activeReading.grahaTimeline && !isBuildingTimeline) {
+                            onRetryTimelineBuild(activeCard.id, activeTab);
+                          }
+                        }}
                         title={
                           isBuildingTimeline
                             ? `${
                                 activeTab === 'private' ? 'Private LLM' : primaryTabLabel
                               } is extracting Request 2 animation plot data...`
-                            : 'Open 2D Astrological Reasoning Timeline'
+                            : activeReading.grahaTimeline
+                            ? 'Open 2D Astrological Reasoning Timeline'
+                            : 'Generate & Open 2D Astrological Reasoning Timeline'
                         }
-                        className={`px-4 py-2 rounded-xl border text-xs font-medium inline-flex items-center gap-2 transition-colors backdrop-blur-md ${
-                          isBuildingTimeline
-                            ? 'border-white/10 bg-white/[0.02] text-[#7D8496] opacity-55 cursor-not-allowed'
-                            : 'border-white/15 bg-white/[0.04] hover:bg-white/[0.08] text-[#D4A853]'
-                        }`}
+                        className="px-4 py-2 rounded-xl border text-xs font-medium inline-flex items-center gap-2 transition-colors backdrop-blur-md border-white/15 bg-white/[0.04] hover:bg-white/[0.08] text-[#D4A853]"
                       >
                         {isBuildingTimeline ? (
                           <>

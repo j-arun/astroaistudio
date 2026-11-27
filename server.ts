@@ -10,9 +10,9 @@ import { buildGrahaTimelineExtractionPrompt } from './src/data/timelinePromptBui
 
 dotenv.config();
 
-const PRIMARY_PORT = Number(process.env.ASTRO_PORT) || 6001;
-const PREVIEW_PORT = 3000;
+const PORT = Number(process.env.PORT || process.env.ASTRO_PORT) || 3000;
 const DATA_DIR = path.resolve(process.cwd(), '.astro-studio-data');
+const LOGS_DIR = path.resolve(process.cwd(), 'logs');
 const PROFILES_FILE = path.join(DATA_DIR, 'profiles.json');
 const THREADS_FILE = path.join(DATA_DIR, 'threads.json');
 const API_CONFIG_FILE = path.join(DATA_DIR, 'api-config.json');
@@ -49,6 +49,148 @@ function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
+}
+
+function ensureLogsDir() {
+  if (!fs.existsSync(LOGS_DIR)) {
+    fs.mkdirSync(LOGS_DIR, { recursive: true });
+  }
+}
+
+type LlmRequestType = 'submit-card' | 'astro-reasoning' | 'follow-up-chat' | 'test-adapter';
+
+interface LlmLogContext {
+  filePath: string;
+  fileName: string;
+  record: {
+    requestId: string;
+    date: string;
+    timestamp: string;
+    localTimestamp: string;
+    requestType: LlmRequestType;
+    route: string;
+    provider: 'gemini' | 'fable' | 'ollama';
+    model: string;
+    endpointUrl?: string;
+    status:
+      | 'pending'
+      | 'received'
+      | 'parsed'
+      | 'fallback_plain_text'
+      | 'parse_error'
+      | 'upstream_error';
+    query: unknown;
+    httpStatus?: number;
+    stopReason?: string;
+    usage?: unknown;
+    rawHttpBody?: string;
+    extractedText?: string;
+    parsedOutput?: unknown;
+    error?: string;
+    completedAt?: string;
+  };
+}
+
+function formatQueryForLog(query: unknown): string {
+  if (typeof query === 'string') return query;
+  if (!query || typeof query !== 'object') return String(query ?? '');
+  const q = query as Record<string, unknown>;
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(q)) {
+    if (v === undefined) continue;
+    if (typeof v === 'string') {
+      parts.push(`--- ${k} ---\n${v}`);
+    } else {
+      parts.push(`--- ${k} ---\n${JSON.stringify(v, null, 2)}`);
+    }
+  }
+  return parts.join('\n\n');
+}
+
+function flushLlmLog(ctx: LlmLogContext): void {
+  try {
+    ensureLogsDir();
+    const r = ctx.record;
+    const lines: string[] = [
+      '================================================================================',
+      `REQUEST ID   : ${r.requestId}`,
+      `DATE         : ${r.date}`,
+      `TIMESTAMP    : ${r.timestamp}`,
+      `LOCAL TIME   : ${r.localTimestamp}`,
+      `TYPE         : ${r.requestType}`,
+      `ROUTE        : ${r.route}`,
+      `PROVIDER     : ${r.provider}`,
+      `MODEL        : ${r.model}`,
+      ...(r.endpointUrl ? [`ENDPOINT     : ${r.endpointUrl}`] : []),
+      `STATUS       : ${r.status}`,
+      ...(r.httpStatus !== undefined ? [`HTTP STATUS  : ${r.httpStatus}`] : []),
+      ...(r.stopReason ? [`STOP REASON  : ${r.stopReason}`] : []),
+      ...(r.usage !== undefined ? [`USAGE        : ${JSON.stringify(r.usage)}`] : []),
+      ...(r.completedAt ? [`COMPLETED AT : ${r.completedAt}`] : []),
+      '================================================================================',
+      '',
+      '[QUERY]',
+      formatQueryForLog(r.query),
+      '',
+      '[RAW RESPONSE FROM UNDERLYING SYSTEM (WRITTEN VERBATIM BEFORE PARSING)]',
+      r.rawHttpBody !== undefined ? r.rawHttpBody : '(not received yet)',
+      '',
+    ];
+
+    if (r.extractedText !== undefined && r.extractedText !== r.rawHttpBody) {
+      lines.push('[EXTRACTED TEXT]', r.extractedText, '');
+    }
+
+    if (r.error) {
+      lines.push('[ERROR / NOTICE]', r.error, '');
+    }
+
+    if (r.parsedOutput !== undefined) {
+      lines.push('[PARSED OUTPUT]', JSON.stringify(r.parsedOutput, null, 2), '');
+    }
+
+    fs.writeFileSync(ctx.filePath, lines.join('\n'), 'utf-8');
+  } catch (err) {
+    console.error(`[LLM Log] Failed to write ${ctx.filePath}:`, err);
+  }
+}
+
+function createLlmLog(params: {
+  requestType: LlmRequestType;
+  route: string;
+  provider: 'gemini' | 'fable' | 'ollama';
+  model: string;
+  endpointUrl?: string;
+  query: unknown;
+}): LlmLogContext {
+  ensureLogsDir();
+  const now = new Date();
+  const pad = (n: number, len = 2) => String(n).padStart(len, '0');
+  const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const timeStr = `${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}-${pad(now.getMilliseconds(), 3)}`;
+  const rand = Math.random().toString(36).slice(2, 6);
+  const fileName = `${dateStr}_${timeStr}_${params.requestType}_${params.provider}_${rand}.log`;
+  const filePath = path.join(LOGS_DIR, fileName);
+
+  const ctx: LlmLogContext = {
+    filePath,
+    fileName,
+    record: {
+      requestId: `${dateStr}_${timeStr}_${rand}`,
+      date: dateStr,
+      timestamp: now.toISOString(),
+      localTimestamp: now.toString(),
+      requestType: params.requestType,
+      route: params.route,
+      provider: params.provider,
+      model: params.model,
+      endpointUrl: params.endpointUrl,
+      status: 'pending',
+      query: params.query,
+    },
+  };
+  flushLlmLog(ctx);
+  return ctx;
 }
 
 function readJsonFile<T>(filePath: string, fallback: T): T {
@@ -125,10 +267,136 @@ function resolveFableApiKey(cfg: PersistedConfig): string {
   return '';
 }
 
+function extractTextFromSseStream(raw: string): string | null {
+  const lines = raw.split(/\r?\n/);
+  const dataLines = lines.filter((l) => l.startsWith('data:'));
+  if (dataLines.length === 0) return null;
+
+  let combined = '';
+  for (const line of dataLines) {
+    const payload = line.slice(5).trim();
+    if (!payload || payload === '[DONE]') continue;
+    try {
+      const evt = JSON.parse(payload);
+      const piece =
+        evt?.choices?.[0]?.delta?.content ??
+        evt?.choices?.[0]?.message?.content ??
+        evt?.delta?.text ??
+        evt?.content_block?.text ??
+        evt?.text ??
+        '';
+      if (typeof piece === 'string') {
+        combined += piece;
+      }
+    } catch {
+      // ignore non-JSON SSE keepalive/event lines
+    }
+  }
+  return combined.trim() ? combined : null;
+}
+
+function extractTextFromAdapterPayload(raw: string): {
+  text: string;
+  stopReason?: string;
+  usage?: unknown;
+} {
+  const sseText = extractTextFromSseStream(raw);
+  if (sseText !== null) {
+    return { text: sseText };
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+
+    // Extract stop/finish reason and token usage when present
+    const stopReason =
+      parsed?.stop_reason ??
+      parsed?.choices?.[0]?.finish_reason ??
+      parsed?.finish_reason ??
+      undefined;
+    const usage = parsed?.usage ?? undefined;
+
+    // If the endpoint already returned our astro JSON directly without an envelope
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      (('overallSynthesis' in parsed && 'cardReadings' in parsed) ||
+        ('factors' in parsed && 'planets' in parsed))
+    ) {
+      return { text: JSON.stringify(parsed), stopReason, usage };
+    }
+
+    // Anthropic /v1/messages format
+    if (Array.isArray(parsed?.content)) {
+      const anthropicText = parsed.content
+        .filter(
+          (block: Record<string, unknown>) =>
+            block && block.type === 'text' && typeof block.text === 'string'
+        )
+        .map((block: Record<string, unknown>) => block.text as string)
+        .join('\n')
+        .trim();
+      if (anthropicText) return { text: anthropicText, stopReason, usage };
+    }
+
+    // OpenAI /chat/completions array-content format
+    const choiceContent = parsed?.choices?.[0]?.message?.content;
+    if (Array.isArray(choiceContent)) {
+      const joined = choiceContent
+        .map((part: Record<string, unknown>) =>
+          typeof part?.text === 'string'
+            ? part.text
+            : typeof part?.content === 'string'
+            ? part.content
+            : ''
+        )
+        .filter(Boolean)
+        .join('\n')
+        .trim();
+      if (joined) return { text: joined, stopReason, usage };
+    }
+
+    // OpenAI Responses API output array
+    if (Array.isArray(parsed?.output)) {
+      const outputTexts: string[] = [];
+      for (const item of parsed.output as Array<Record<string, unknown>>) {
+        if (Array.isArray(item?.content)) {
+          for (const part of item.content as Array<Record<string, unknown>>) {
+            if (typeof part?.text === 'string') outputTexts.push(part.text);
+          }
+        } else if (typeof item?.text === 'string') {
+          outputTexts.push(item.text);
+        }
+      }
+      const joined = outputTexts.join('\n').trim();
+      if (joined) return { text: joined, stopReason, usage };
+    }
+
+    const content =
+      (typeof choiceContent === 'string' ? choiceContent : undefined) ??
+      parsed?.choices?.[0]?.text ??
+      parsed?.output_text ??
+      parsed?.reply ??
+      parsed?.response ??
+      parsed?.answer ??
+      parsed?.result ??
+      parsed?.text ??
+      (typeof parsed?.content === 'string' ? parsed.content : undefined) ??
+      (typeof parsed?.data?.content === 'string' ? parsed.data.content : undefined) ??
+      (typeof parsed?.data?.text === 'string' ? parsed.data.text : undefined);
+
+    if (typeof content === 'string') return { text: content, stopReason, usage };
+    return { text: raw, stopReason, usage };
+  } catch {
+    return { text: raw };
+  }
+}
+
 async function callFableAdapter(
   cfg: PersistedConfig,
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-  expectJson: boolean
+  expectJson: boolean,
+  logCtx?: LlmLogContext
 ): Promise<string> {
   if (!cfg.fableEndpointUrl || !cfg.fableEndpointUrl.trim()) {
     throw new Error(
@@ -144,14 +412,34 @@ async function callFableAdapter(
     );
   }
 
+  const modelTrimmed = (cfg.fableModel || '').trim();
+  const isExplicitOpenAi =
+    /\/chat\/completions\b/i.test(endpointUrl) ||
+    /\/completions\b/i.test(endpointUrl) ||
+    /\/responses\b/i.test(endpointUrl) ||
+    /openai\.com/i.test(endpointUrl);
+
   const isAnthropicEndpoint =
-    /\/v1\/messages\b/i.test(endpointUrl) ||
-    /anthropic\.com/i.test(endpointUrl) ||
-    /^(claude|fable)/i.test((cfg.fableModel || '').trim());
+    !isExplicitOpenAi &&
+    (/\/v1\/messages\b/i.test(endpointUrl) ||
+      /anthropic\.com/i.test(endpointUrl) ||
+      /^claude/i.test(modelTrimmed));
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
+
+  // Append a strict JSON reminder to the final user message when JSON is expected
+  const effectiveMessages = expectJson
+    ? messages.map((m, idx) =>
+        idx === messages.length - 1 && m.role === 'user'
+          ? {
+              ...m,
+              content: `${m.content}\n\nIMPORTANT: Output ONLY a single valid JSON object starting with { and ending with }. Do not include markdown fences or explanatory prose outside the JSON.`,
+            }
+          : m
+      )
+    : messages;
 
   let bodyPayload: Record<string, unknown>;
 
@@ -159,13 +447,13 @@ async function callFableAdapter(
     headers['x-api-key'] = rawKey;
     headers['anthropic-version'] = '2023-06-01';
 
-    const systemText = messages
+    const systemText = effectiveMessages
       .filter((m) => m.role === 'system')
       .map((m) => m.content)
       .join('\n\n')
       .trim();
 
-    const conversationMessages = messages
+    const conversationMessages = effectiveMessages
       .filter((m) => m.role !== 'system')
       .map((m) => ({
         role: m.role === 'assistant' ? 'assistant' : 'user',
@@ -173,8 +461,8 @@ async function callFableAdapter(
       }));
 
     bodyPayload = {
-      model: (cfg.fableModel && cfg.fableModel.trim()) || 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
+      model: modelTrimmed || 'claude-sonnet-4-20250514',
+      max_tokens: 8192,
       messages:
         conversationMessages.length > 0
           ? conversationMessages
@@ -187,51 +475,83 @@ async function callFableAdapter(
     headers['x-api-key'] = rawKey;
     headers['Authorization'] = `Bearer ${rawKey}`;
     bodyPayload = {
-      messages,
+      messages: effectiveMessages,
     };
-    if (cfg.fableModel && cfg.fableModel.trim()) {
-      bodyPayload.model = cfg.fableModel.trim();
+    if (modelTrimmed) {
+      bodyPayload.model = modelTrimmed;
     }
     if (expectJson) {
       bodyPayload.response_format = { type: 'json_object' };
     }
   }
 
-  const upstream = await fetch(endpointUrl, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(bodyPayload),
-  });
-
-  const raw = await upstream.text();
-  if (!upstream.ok) {
-    throw new Error(`Fable Adapter returned ${upstream.status}: ${raw.slice(0, 260)}`);
-  }
-
+  let upstream: Response;
   try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed?.content)) {
-      const anthropicText = parsed.content
-        .filter(
-          (block: Record<string, unknown>) =>
-            block && block.type === 'text' && typeof block.text === 'string'
-        )
-        .map((block: Record<string, unknown>) => block.text as string)
-        .join('\n')
-        .trim();
-      if (anthropicText) return anthropicText;
+    upstream = await fetch(endpointUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(bodyPayload),
+    });
+  } catch (err: unknown) {
+    const detail = err instanceof Error ? err.message : 'Network error';
+    const errMsg = `Cannot reach Fable Adapter at ${endpointUrl} (${detail}).`;
+    if (logCtx) {
+      logCtx.record.status = 'upstream_error';
+      logCtx.record.error = errMsg;
+      logCtx.record.completedAt = new Date().toISOString();
+      flushLlmLog(logCtx);
     }
-    const content =
-      parsed?.choices?.[0]?.message?.content ??
-      parsed?.output_text ??
-      parsed?.reply ??
-      parsed?.text ??
-      parsed?.content;
-    if (typeof content === 'string') return content;
-    return raw;
-  } catch {
-    return raw;
+    throw new Error(errMsg);
   }
+
+  let raw = await upstream.text();
+
+  // Some OpenAI-compatible gateways reject response_format with HTTP 400 before running the model.
+  // Retry once without response_format only when rejected on 400 with response_format error.
+  if (
+    !upstream.ok &&
+    upstream.status === 400 &&
+    !isAnthropicEndpoint &&
+    expectJson &&
+    'response_format' in bodyPayload &&
+    /response_format/i.test(raw)
+  ) {
+    delete bodyPayload.response_format;
+    upstream = await fetch(endpointUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(bodyPayload),
+    });
+    raw = await upstream.text();
+  }
+
+  // CRITICAL: Write raw HTTP response verbatim to disk IMMEDIATELY before any extraction or parsing
+  if (logCtx) {
+    logCtx.record.httpStatus = upstream.status;
+    logCtx.record.rawHttpBody = raw;
+    logCtx.record.status = upstream.ok ? 'received' : 'upstream_error';
+    flushLlmLog(logCtx);
+  }
+
+  const extracted = extractTextFromAdapterPayload(raw);
+  if (logCtx) {
+    logCtx.record.extractedText = extracted.text;
+    logCtx.record.stopReason = extracted.stopReason;
+    logCtx.record.usage = extracted.usage;
+    flushLlmLog(logCtx);
+  }
+
+  if (!upstream.ok) {
+    const errMsg = `Fable Adapter returned ${upstream.status}: ${raw.slice(0, 260)}`;
+    if (logCtx) {
+      logCtx.record.error = errMsg;
+      logCtx.record.completedAt = new Date().toISOString();
+      flushLlmLog(logCtx);
+    }
+    throw new Error(errMsg);
+  }
+
+  return extracted.text;
 }
 
 function normalizeOllamaBaseUrl(rawUrl: string): string {
@@ -242,7 +562,8 @@ function normalizeOllamaBaseUrl(rawUrl: string): string {
 async function callOllamaAdapter(
   cfg: PersistedConfig,
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-  expectJson: boolean
+  expectJson: boolean,
+  logCtx?: LlmLogContext
 ): Promise<string> {
   const baseUrl = normalizeOllamaBaseUrl(cfg.ollamaBaseUrl || 'http://localhost:11434');
   const model = (cfg.ollamaModel || '').trim();
@@ -287,37 +608,203 @@ async function callOllamaAdapter(
   }
 
   const raw = await upstream.text();
-  if (!upstream.ok) {
-    throw new Error(`Ollama returned ${upstream.status}: ${raw.slice(0, 260)}`);
-  }
 
+  let extractedText = raw;
   try {
     const parsed = JSON.parse(raw);
     const content = parsed?.message?.content ?? parsed?.response;
-    if (typeof content === 'string') return content;
-    return raw;
+    if (typeof content === 'string') extractedText = content;
   } catch {
-    return raw;
+    // keep raw
   }
+
+  if (logCtx) {
+    logCtx.record.httpStatus = upstream.status;
+    logCtx.record.rawHttpBody = raw;
+    logCtx.record.extractedText = extractedText;
+    logCtx.record.status = upstream.ok ? 'received' : 'upstream_error';
+    flushLlmLog(logCtx);
+  }
+
+  if (!upstream.ok) {
+    const errMsg = `Ollama returned ${upstream.status}: ${raw.slice(0, 260)}`;
+    if (logCtx) {
+      logCtx.record.error = errMsg;
+      logCtx.record.completedAt = new Date().toISOString();
+      flushLlmLog(logCtx);
+    }
+    throw new Error(errMsg);
+  }
+
+  return extractedText;
+}
+
+function repairJsonText(input: string): string {
+  // 1. Escape unescaped control characters (newlines, tabs, etc.) inside double-quoted JSON strings
+  let out = '';
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (inString) {
+      if (escaped) {
+        out += ch;
+        escaped = false;
+      } else if (ch === '\\') {
+        out += ch;
+        escaped = true;
+      } else if (ch === '"') {
+        out += ch;
+        inString = false;
+      } else if (ch === '\n') {
+        out += '\\n';
+      } else if (ch === '\r') {
+        out += '\\r';
+      } else if (ch === '\t') {
+        out += '\\t';
+      } else {
+        const code = ch.charCodeAt(0);
+        if (code < 0x20) {
+          out += `\\u${code.toString(16).padStart(4, '0')}`;
+        } else {
+          out += ch;
+        }
+      }
+    } else {
+      if (ch === '"') {
+        inString = true;
+      }
+      out += ch;
+    }
+  }
+
+  // 2. Remove trailing commas before } or ] outside strings
+  out = out.replace(/,\s*([}\]])/g, '$1');
+  return out;
+}
+
+function extractBalancedJsonObjects(text: string): string[] {
+  const results: string[] = [];
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === '{') {
+      let depth = 0;
+      let inString = false;
+      let escaped = false;
+      let j = i;
+      for (; j < text.length; j++) {
+        const ch = text[j];
+        if (inString) {
+          if (escaped) {
+            escaped = false;
+          } else if (ch === '\\') {
+            escaped = true;
+          } else if (ch === '"') {
+            inString = false;
+          }
+        } else {
+          if (ch === '"') {
+            inString = true;
+          } else if (ch === '{') {
+            depth++;
+          } else if (ch === '}') {
+            depth--;
+            if (depth === 0) {
+              results.push(text.slice(i, j + 1));
+              i = j;
+              break;
+            }
+          }
+        }
+      }
+    }
+    i++;
+  }
+  return results;
+}
+
+function tryParseJsonCandidate(candidate: string): Record<string, unknown> | null {
+  const trimmed = candidate.trim();
+  if (!trimmed) return null;
+  for (const attempt of [trimmed, repairJsonText(trimmed)]) {
+    try {
+      const val = JSON.parse(attempt);
+      if (val && typeof val === 'object' && !Array.isArray(val)) {
+        return val as Record<string, unknown>;
+      }
+    } catch {
+      // continue to next attempt
+    }
+  }
+  return null;
 }
 
 function parseLooseJson(rawText: string): Record<string, unknown> {
   const withoutThink = rawText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-  const cleaned = withoutThink
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/```\s*$/i, '')
-    .trim();
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    const firstBrace = cleaned.indexOf('{');
-    const lastBrace = cleaned.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace > firstBrace) {
-      return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
-    }
-    throw new Error('Model response was not valid JSON.');
+
+  // 1. Direct parse
+  const direct = tryParseJsonCandidate(withoutThink);
+  if (direct) return direct;
+
+  // 2. Extract any fenced code blocks (```json ... ``` or ``` ... ```) anywhere in the text
+  const fenceRegex = /```(?:json)?\s*([\s\S]*?)```/gi;
+  let match: RegExpExecArray | null;
+  while ((match = fenceRegex.exec(withoutThink)) !== null) {
+    const parsedFence = tryParseJsonCandidate(match[1]);
+    if (parsedFence) return parsedFence;
   }
+
+  // 3. Extract balanced { ... } objects across the response (prefer larger/valid objects)
+  const balancedObjects = extractBalancedJsonObjects(withoutThink).sort(
+    (a, b) => b.length - a.length
+  );
+  for (const objStr of balancedObjects) {
+    const parsedObj = tryParseJsonCandidate(objStr);
+    if (parsedObj) return parsedObj;
+  }
+
+  // 4. Fallback slice from first { to last } with repair
+  const firstBrace = withoutThink.indexOf('{');
+  const lastBrace = withoutThink.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    const parsedSlice = tryParseJsonCandidate(withoutThink.slice(firstBrace, lastBrace + 1));
+    if (parsedSlice) return parsedSlice;
+  }
+
+  throw new Error('Model response was not valid JSON.');
+}
+
+function buildPlainTextFallbackReading(
+  rawText: string,
+  cards: Array<{ id: string }>,
+  logFileName: string
+): Record<string, unknown> {
+  const cleaned = rawText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  const paragraphs = cleaned
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const leadSummary =
+    paragraphs[0]?.slice(0, 600) ||
+    cleaned.slice(0, 600) ||
+    'Response received in plain text format.';
+
+  return {
+    overallSynthesis: leadSummary,
+    cardReadings: cards.map((c) => ({
+      cardId: c.id,
+      verdictSummary: leadSummary,
+      planetaryTriggers: `${cleaned}\n\n[Saved raw response to logs/${logFileName}]`,
+      timingWindow: 'See full reading details',
+      guidance:
+        paragraphs.length > 1
+          ? paragraphs[paragraphs.length - 1].slice(0, 500)
+          : 'Review the saved response in the Astrological Reasoning panel or logs folder.',
+    })),
+    _rawFallbackNotice: `Model returned plain text instead of strict JSON. Full raw response was saved to logs/${logFileName} and rendered below.`,
+    _logFile: logFileName,
+  };
 }
 
 async function startServer() {
@@ -531,6 +1018,26 @@ async function startServer() {
     const targetProvider =
       provider === 'fable' ? 'fable' : provider === 'ollama' ? 'ollama' : 'gemini';
     const startedAt = Date.now();
+    const testModelName =
+      targetProvider === 'fable'
+        ? activeCfg.fableModel || 'endpoint-default'
+        : targetProvider === 'ollama'
+        ? activeCfg.ollamaModel
+        : activeCfg.geminiModel || 'gemini-4-hydrogen';
+
+    const logCtx = createLlmLog({
+      requestType: 'test-adapter',
+      route: '/api/astro/test-adapter',
+      provider: targetProvider,
+      model: testModelName,
+      endpointUrl:
+        targetProvider === 'fable'
+          ? activeCfg.fableEndpointUrl
+          : targetProvider === 'ollama'
+          ? activeCfg.ollamaBaseUrl
+          : undefined,
+      query: { prompt: 'Connection check: reply with exactly OK.' },
+    });
 
     try {
       if (targetProvider === 'ollama') {
@@ -542,14 +1049,20 @@ async function startServer() {
               content: 'Connection check: reply with exactly OK.',
             },
           ],
-          false
+          false,
+          logCtx
         );
+        logCtx.record.status = 'parsed';
+        logCtx.record.parsedOutput = { reply };
+        logCtx.record.completedAt = new Date().toISOString();
+        flushLlmLog(logCtx);
         res.json({
           ok: true,
           provider: 'ollama',
           model: activeCfg.ollamaModel,
           latencyMs: Date.now() - startedAt,
           reply: reply.trim().slice(0, 140),
+          logFile: logCtx.fileName,
         });
         return;
       }
@@ -563,24 +1076,33 @@ async function startServer() {
               content: 'Connection check: reply with exactly OK.',
             },
           ],
-          false
+          false,
+          logCtx
         );
+        logCtx.record.status = 'parsed';
+        logCtx.record.parsedOutput = { reply };
+        logCtx.record.completedAt = new Date().toISOString();
+        flushLlmLog(logCtx);
         res.json({
           ok: true,
           provider: 'fable',
           model: activeCfg.fableModel || 'endpoint-default',
           latencyMs: Date.now() - startedAt,
           reply: reply.trim().slice(0, 140),
+          logFile: logCtx.fileName,
         });
         return;
       }
 
       const ai = getAiClient();
       if (!ai) {
-        res.status(503).json({
-          error:
-            'GEMINI_API_KEY is not configured on the server. Add GEMINI_API_KEY in Settings > Secrets.',
-        });
+        const errMsg =
+          'GEMINI_API_KEY is not configured on the server. Add GEMINI_API_KEY in Settings > Secrets.';
+        logCtx.record.status = 'upstream_error';
+        logCtx.record.error = errMsg;
+        logCtx.record.completedAt = new Date().toISOString();
+        flushLlmLog(logCtx);
+        res.status(503).json({ error: errMsg });
         return;
       }
 
@@ -590,16 +1112,31 @@ async function startServer() {
         contents: 'Connection check: reply with exactly OK.',
       });
 
+      const replyText = (response.text ?? '').trim();
+      logCtx.record.httpStatus = 200;
+      logCtx.record.rawHttpBody = JSON.stringify(response);
+      logCtx.record.extractedText = replyText;
+      logCtx.record.usage = response.usageMetadata;
+      logCtx.record.status = 'parsed';
+      logCtx.record.parsedOutput = { reply: replyText };
+      logCtx.record.completedAt = new Date().toISOString();
+      flushLlmLog(logCtx);
+
       res.json({
         ok: true,
         provider: 'gemini',
         model: modelName,
         latencyMs: Date.now() - startedAt,
-        reply: (response.text ?? '').trim().slice(0, 140) || 'OK',
+        reply: replyText.slice(0, 140) || 'OK',
+        logFile: logCtx.fileName,
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Adapter test failed.';
-      res.status(502).json({ error: message });
+      logCtx.record.status = logCtx.record.status === 'pending' ? 'upstream_error' : logCtx.record.status;
+      logCtx.record.error = message;
+      logCtx.record.completedAt = new Date().toISOString();
+      flushLlmLog(logCtx);
+      res.status(502).json({ error: `${message} (Logged to logs/${logCtx.fileName})` });
     }
   });
 
@@ -626,52 +1163,186 @@ async function startServer() {
       futureWindow,
     });
 
+    const targetProvider: 'gemini' | 'fable' | 'ollama' =
+      activeCfg.llmProvider === 'fable'
+        ? 'fable'
+        : activeCfg.llmProvider === 'ollama'
+        ? 'ollama'
+        : 'gemini';
+
+    const resolvedModel =
+      targetProvider === 'fable'
+        ? activeCfg.fableModel || 'endpoint-default'
+        : targetProvider === 'ollama'
+        ? activeCfg.ollamaModel || 'ollama'
+        : activeCfg.geminiModel && activeCfg.geminiModel.trim()
+        ? activeCfg.geminiModel.trim()
+        : 'gemini-4-hydrogen';
+
+    const logCtx = createLlmLog({
+      requestType: 'submit-card',
+      route: '/api/astro/analyze',
+      provider: targetProvider,
+      model: resolvedModel,
+      endpointUrl:
+        targetProvider === 'fable'
+          ? activeCfg.fableEndpointUrl
+          : targetProvider === 'ollama'
+          ? activeCfg.ollamaBaseUrl
+          : undefined,
+      query: {
+        profileName: profileName || null,
+        narrativePeriod: `${narrativeWindow?.startMonth} to ${narrativeWindow?.endMonth}`,
+        futurePeriod: `${futureWindow?.startMonth} to ${futureWindow?.endMonth}`,
+        cards,
+        systemInstruction,
+        userPrompt: prompt,
+      },
+    });
+
+    const parseOrRecoverAnalyze = (rawText: string) => {
+      try {
+        let parsed = parseLooseJson(rawText);
+        // Unwrap nested data/result envelope if needed
+        if (
+          !('cardReadings' in parsed) &&
+          !('overallSynthesis' in parsed) &&
+          parsed.data &&
+          typeof parsed.data === 'object' &&
+          !Array.isArray(parsed.data)
+        ) {
+          parsed = parsed.data as Record<string, unknown>;
+        } else if (
+          !('cardReadings' in parsed) &&
+          !('overallSynthesis' in parsed) &&
+          parsed.result &&
+          typeof parsed.result === 'object' &&
+          !Array.isArray(parsed.result)
+        ) {
+          parsed = parsed.result as Record<string, unknown>;
+        }
+
+        const asStr = (val: unknown): string => {
+          if (typeof val === 'string') return val.trim();
+          if (val && typeof val === 'object') return JSON.stringify(val, null, 2);
+          return val !== undefined && val !== null ? String(val).trim() : '';
+        };
+
+        const rawReadings = Array.isArray(parsed.cardReadings)
+          ? (parsed.cardReadings as Array<Record<string, unknown>>)
+          : Array.isArray(parsed.cards)
+          ? (parsed.cards as Array<Record<string, unknown>>)
+          : [];
+
+        let normalizedReadings = rawReadings.map((r, idx) => ({
+          cardId: asStr(r?.cardId || r?.id || cards[idx]?.id || cards[0]?.id || `card-${idx + 1}`),
+          verdictSummary: asStr(r?.verdictSummary || r?.verdict || r?.summary || parsed.overallSynthesis),
+          planetaryTriggers: asStr(
+            r?.planetaryTriggers || r?.astrologicalReasoning || r?.reasoning || rawText
+          ),
+          timingWindow: asStr(r?.timingWindow || r?.timing || r?.window),
+          guidance: asStr(r?.guidance || r?.advice || r?.nextSteps),
+        }));
+
+        // If model placed reading fields at top level without cardReadings array
+        if (normalizedReadings.length === 0) {
+          const topVerdict = asStr(
+            parsed.verdictSummary || parsed.verdict || parsed.overallSynthesis || parsed.summary
+          );
+          const topReasoning = asStr(
+            parsed.planetaryTriggers || parsed.astrologicalReasoning || parsed.reasoning
+          );
+          if (topVerdict || topReasoning) {
+            normalizedReadings = cards.map((c: { id: string }) => ({
+              cardId: c.id,
+              verdictSummary: topVerdict || rawText.slice(0, 600),
+              planetaryTriggers: topReasoning || rawText,
+              timingWindow: asStr(parsed.timingWindow || parsed.timing),
+              guidance: asStr(parsed.guidance || parsed.advice),
+            }));
+          }
+        }
+
+        if (normalizedReadings.length === 0) {
+          const fallback = buildPlainTextFallbackReading(rawText, cards, logCtx.fileName);
+          logCtx.record.status = 'fallback_plain_text';
+          logCtx.record.error = 'Parsed JSON did not contain cardReadings; wrapped raw text for display.';
+          logCtx.record.parsedOutput = fallback;
+          logCtx.record.completedAt = new Date().toISOString();
+          flushLlmLog(logCtx);
+          return fallback;
+        }
+
+        const normalizedPayload = {
+          overallSynthesis:
+            asStr(parsed.overallSynthesis || parsed.synthesis || parsed.summary) ||
+            normalizedReadings[0]?.verdictSummary ||
+            '',
+          cardReadings: normalizedReadings,
+          _logFile: logCtx.fileName,
+        };
+
+        logCtx.record.status = 'parsed';
+        logCtx.record.parsedOutput = normalizedPayload;
+        logCtx.record.completedAt = new Date().toISOString();
+        flushLlmLog(logCtx);
+        return normalizedPayload;
+      } catch (parseErr: unknown) {
+        const errMsg = parseErr instanceof Error ? parseErr.message : 'Model response was not valid JSON.';
+        const fallback = buildPlainTextFallbackReading(rawText, cards, logCtx.fileName);
+        logCtx.record.status = 'fallback_plain_text';
+        logCtx.record.error = errMsg;
+        logCtx.record.parsedOutput = fallback;
+        logCtx.record.completedAt = new Date().toISOString();
+        flushLlmLog(logCtx);
+        return fallback;
+      }
+    };
+
     try {
-      if (activeCfg.llmProvider === 'ollama') {
+      if (targetProvider === 'ollama') {
         const rawOllama = await callOllamaAdapter(
           activeCfg,
           [
             { role: 'system', content: systemInstruction },
             { role: 'user', content: prompt },
           ],
-          true
+          true,
+          logCtx
         );
-        const parsed = parseLooseJson(rawOllama);
-        res.json(parsed);
+        res.json(parseOrRecoverAnalyze(rawOllama));
         return;
       }
 
-      if (activeCfg.llmProvider === 'fable') {
+      if (targetProvider === 'fable') {
         const rawFable = await callFableAdapter(
           activeCfg,
           [
             { role: 'system', content: systemInstruction },
             { role: 'user', content: prompt },
           ],
-          true
+          true,
+          logCtx
         );
-        const parsed = parseLooseJson(rawFable);
-        res.json(parsed);
+        res.json(parseOrRecoverAnalyze(rawFable));
         return;
       }
 
       // Default: Gemini Adapter
       const ai = getAiClient();
       if (!ai) {
-        res.status(503).json({
-          error:
-            'GEMINI_API_KEY is not configured. Add your Gemini API key in Settings > Secrets, or switch to the Fable Adapter in Settings.',
-        });
+        const errMsg =
+          'GEMINI_API_KEY is not configured. Add your Gemini API key in Settings > Secrets, or switch to the Fable Adapter in Settings.';
+        logCtx.record.status = 'upstream_error';
+        logCtx.record.error = errMsg;
+        logCtx.record.completedAt = new Date().toISOString();
+        flushLlmLog(logCtx);
+        res.status(503).json({ error: errMsg });
         return;
       }
 
-      const geminiModel =
-        activeCfg.geminiModel && activeCfg.geminiModel.trim()
-          ? activeCfg.geminiModel.trim()
-          : 'gemini-4-hydrogen';
-
       const response = await ai.models.generateContent({
-        model: geminiModel,
+        model: resolvedModel,
         contents: prompt,
         config: {
           systemInstruction,
@@ -703,12 +1374,25 @@ async function startServer() {
       });
 
       const raw = (response.text ?? '{}').trim();
-      const parsed = JSON.parse(raw);
-      res.json(parsed);
+      // Save raw Gemini response BEFORE parsing
+      logCtx.record.httpStatus = 200;
+      logCtx.record.rawHttpBody = JSON.stringify(response);
+      logCtx.record.extractedText = raw;
+      logCtx.record.usage = response.usageMetadata;
+      logCtx.record.status = 'received';
+      flushLlmLog(logCtx);
+
+      res.json(parseOrRecoverAnalyze(raw));
     } catch (err: unknown) {
       console.error('Analyze error:', err);
       const message = err instanceof Error ? err.message : 'Failed to generate astrological reading.';
-      res.status(502).json({ error: message });
+      if (!logCtx.record.error) {
+        logCtx.record.status = logCtx.record.status === 'received' ? 'parse_error' : 'upstream_error';
+        logCtx.record.error = message;
+        logCtx.record.completedAt = new Date().toISOString();
+        flushLlmLog(logCtx);
+      }
+      res.status(502).json({ error: `${message} (Log saved: logs/${logCtx.fileName})` });
     }
   });
 
@@ -779,45 +1463,80 @@ async function startServer() {
       return !Number.isNaN(dt.getTime()) && dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
     };
 
+    const resolvedTimelineModel =
+      targetProvider === 'ollama'
+        ? activeCfg.ollamaModel || 'ollama'
+        : targetProvider === 'fable'
+        ? activeCfg.fableModel || 'fable'
+        : activeCfg.geminiModel && activeCfg.geminiModel.trim()
+        ? activeCfg.geminiModel.trim()
+        : 'gemini-4-hydrogen';
+
+    const logCtx = createLlmLog({
+      requestType: 'astro-reasoning',
+      route: '/api/astro/timeline-decision',
+      provider: targetProvider,
+      model: resolvedTimelineModel,
+      endpointUrl:
+        targetProvider === 'fable'
+          ? activeCfg.fableEndpointUrl
+          : targetProvider === 'ollama'
+          ? activeCfg.ollamaBaseUrl
+          : undefined,
+      query: {
+        domain: domain || 'General',
+        title: title || 'Event',
+        eventDate: eventDate || '',
+        narrative: narrative || '',
+        question: question || '',
+        pastPeriod: `${pastStartMonth || ''} to ${pastEndMonth || ''}`,
+        futurePeriod: `${futureStartMonth || ''} to ${futureEndMonth || ''}`,
+        verdictSummary: verdictSummary || '',
+        timingWindow: timingWindow || '',
+        planetaryTriggers,
+        systemInstruction,
+        userPrompt,
+      },
+    });
+
     try {
       let parsed: Record<string, unknown>;
-      let usedModel = '';
+      let usedModel = resolvedTimelineModel;
 
       if (targetProvider === 'ollama') {
-        usedModel = activeCfg.ollamaModel || 'ollama';
         const rawOllama = await callOllamaAdapter(
           activeCfg,
           [
             { role: 'system', content: systemInstruction },
             { role: 'user', content: userPrompt },
           ],
-          true
+          true,
+          logCtx
         );
         parsed = parseLooseJson(rawOllama);
       } else if (targetProvider === 'fable') {
-        usedModel = activeCfg.fableModel || 'fable';
         const rawFable = await callFableAdapter(
           activeCfg,
           [
             { role: 'system', content: systemInstruction },
             { role: 'user', content: userPrompt },
           ],
-          true
+          true,
+          logCtx
         );
         parsed = parseLooseJson(rawFable);
       } else {
         const ai = getAiClient();
         if (!ai) {
-          res.status(503).json({
-            error:
-              'GEMINI_API_KEY is not configured. Add your Gemini API key in Settings > Secrets.',
-          });
+          const errMsg =
+            'GEMINI_API_KEY is not configured. Add your Gemini API key in Settings > Secrets.';
+          logCtx.record.status = 'upstream_error';
+          logCtx.record.error = errMsg;
+          logCtx.record.completedAt = new Date().toISOString();
+          flushLlmLog(logCtx);
+          res.status(503).json({ error: errMsg });
           return;
         }
-        usedModel =
-          activeCfg.geminiModel && activeCfg.geminiModel.trim()
-            ? activeCfg.geminiModel.trim()
-            : 'gemini-4-hydrogen';
 
         const response = await ai.models.generateContent({
           model: usedModel,
@@ -919,7 +1638,14 @@ async function startServer() {
             },
           },
         });
-        parsed = parseLooseJson((response.text ?? '{}').trim());
+        const rawGeminiText = (response.text ?? '{}').trim();
+        logCtx.record.httpStatus = 200;
+        logCtx.record.rawHttpBody = JSON.stringify(response);
+        logCtx.record.extractedText = rawGeminiText;
+        logCtx.record.usage = response.usageMetadata;
+        logCtx.record.status = 'received';
+        flushLlmLog(logCtx);
+        parsed = parseLooseJson(rawGeminiText);
       }
 
       const rawWin =
@@ -1036,14 +1762,23 @@ async function startServer() {
         review_flags,
       };
 
-      res.json({ grahaTimeline });
+      logCtx.record.status = 'parsed';
+      logCtx.record.parsedOutput = grahaTimeline;
+      logCtx.record.completedAt = new Date().toISOString();
+      flushLlmLog(logCtx);
+
+      res.json({ grahaTimeline, _logFile: logCtx.fileName });
     } catch (err: unknown) {
       console.error('Timeline extraction error:', err);
       const message =
         err instanceof Error
           ? err.message
           : 'Failed to extract Graha timeline plot data.';
-      res.status(502).json({ error: message });
+      logCtx.record.status = logCtx.record.status === 'received' ? 'parse_error' : 'upstream_error';
+      logCtx.record.error = message;
+      logCtx.record.completedAt = new Date().toISOString();
+      flushLlmLog(logCtx);
+      res.status(502).json({ error: `${message} (Raw response saved to logs/${logCtx.fileName})` });
     }
   });
 
@@ -1108,8 +1843,44 @@ ${futureWindow?.transitDump || 'N/A'}
 
 Answer follow-up questions in strictly realistic, grounded, real-world terms—describing practical possibilities, timing, and actions without mentioning astrology, planets, charts, houses, dasha, or transits unless the user explicitly asks for the astrological explanation. Keep answers clear, structured, and crisp.`;
 
+    const chatProvider: 'gemini' | 'fable' | 'ollama' =
+      activeCfg.llmProvider === 'fable'
+        ? 'fable'
+        : activeCfg.llmProvider === 'ollama'
+        ? 'ollama'
+        : 'gemini';
+
+    const chatModel =
+      chatProvider === 'fable'
+        ? activeCfg.fableModel || 'endpoint-default'
+        : chatProvider === 'ollama'
+        ? activeCfg.ollamaModel || 'ollama'
+        : activeCfg.geminiModel && activeCfg.geminiModel.trim()
+        ? activeCfg.geminiModel.trim()
+        : 'gemini-4-hydrogen';
+
+    const logCtx = createLlmLog({
+      requestType: 'follow-up-chat',
+      route: '/api/astro/chat',
+      provider: chatProvider,
+      model: chatModel,
+      endpointUrl:
+        chatProvider === 'fable'
+          ? activeCfg.fableEndpointUrl
+          : chatProvider === 'ollama'
+          ? activeCfg.ollamaBaseUrl
+          : undefined,
+      query: {
+        profileName: profileName || null,
+        userMessage,
+        historyCount: Array.isArray(history) ? history.length : 0,
+        systemInstruction,
+        history: history || [],
+      },
+    });
+
     try {
-      if (activeCfg.llmProvider === 'ollama') {
+      if (chatProvider === 'ollama') {
         const ollamaMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
           { role: 'system', content: systemInstruction },
           ...(history || []).map((m: { role: 'user' | 'assistant'; content: string }) => ({
@@ -1118,12 +1889,17 @@ Answer follow-up questions in strictly realistic, grounded, real-world terms—d
           })),
           { role: 'user', content: userMessage },
         ];
-        const reply = await callOllamaAdapter(activeCfg, ollamaMessages, false);
-        res.json({ reply: reply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim() });
+        const reply = await callOllamaAdapter(activeCfg, ollamaMessages, false, logCtx);
+        const cleanedReply = reply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+        logCtx.record.status = 'parsed';
+        logCtx.record.parsedOutput = { reply: cleanedReply };
+        logCtx.record.completedAt = new Date().toISOString();
+        flushLlmLog(logCtx);
+        res.json({ reply: cleanedReply, _logFile: logCtx.fileName });
         return;
       }
 
-      if (activeCfg.llmProvider === 'fable') {
+      if (chatProvider === 'fable') {
         const fableMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
           { role: 'system', content: systemInstruction },
           ...(history || []).map((m: { role: 'user' | 'assistant'; content: string }) => ({
@@ -1132,24 +1908,26 @@ Answer follow-up questions in strictly realistic, grounded, real-world terms—d
           })),
           { role: 'user', content: userMessage },
         ];
-        const reply = await callFableAdapter(activeCfg, fableMessages, false);
-        res.json({ reply });
+        const reply = await callFableAdapter(activeCfg, fableMessages, false, logCtx);
+        logCtx.record.status = 'parsed';
+        logCtx.record.parsedOutput = { reply };
+        logCtx.record.completedAt = new Date().toISOString();
+        flushLlmLog(logCtx);
+        res.json({ reply, _logFile: logCtx.fileName });
         return;
       }
 
       const ai = getAiClient();
       if (!ai) {
-        res.status(503).json({
-          error:
-            'GEMINI_API_KEY is not configured. Add your Gemini API key in Settings > Secrets, or switch to the Fable Adapter in Settings.',
-        });
+        const errMsg =
+          'GEMINI_API_KEY is not configured. Add your Gemini API key in Settings > Secrets, or switch to the Fable Adapter in Settings.';
+        logCtx.record.status = 'upstream_error';
+        logCtx.record.error = errMsg;
+        logCtx.record.completedAt = new Date().toISOString();
+        flushLlmLog(logCtx);
+        res.status(503).json({ error: errMsg });
         return;
       }
-
-      const geminiModel =
-        activeCfg.geminiModel && activeCfg.geminiModel.trim()
-          ? activeCfg.geminiModel.trim()
-          : 'gemini-4-hydrogen';
 
       const transcript = (history || [])
         .map((m: { role: string; content: string }) => `${m.role === 'user' ? 'User' : 'Astro AI'}: ${m.content}`)
@@ -1158,19 +1936,71 @@ Answer follow-up questions in strictly realistic, grounded, real-world terms—d
       const prompt = transcript ? `${transcript}\n\nUser: ${userMessage}` : `User: ${userMessage}`;
 
       const response = await ai.models.generateContent({
-        model: geminiModel,
+        model: chatModel,
         contents: prompt,
         config: {
           systemInstruction,
         },
       });
 
-      res.json({ reply: response.text ?? 'Unable to generate response.' });
+      const replyText = response.text ?? 'Unable to generate response.';
+      logCtx.record.httpStatus = 200;
+      logCtx.record.rawHttpBody = JSON.stringify(response);
+      logCtx.record.extractedText = replyText;
+      logCtx.record.usage = response.usageMetadata;
+      logCtx.record.status = 'parsed';
+      logCtx.record.parsedOutput = { reply: replyText };
+      logCtx.record.completedAt = new Date().toISOString();
+      flushLlmLog(logCtx);
+
+      res.json({ reply: replyText, _logFile: logCtx.fileName });
     } catch (err: unknown) {
       console.error('Chat error:', err);
       const message = err instanceof Error ? err.message : 'Failed to process follow-up question.';
-      res.status(502).json({ error: message });
+      if (!logCtx.record.error) {
+        logCtx.record.status = 'upstream_error';
+        logCtx.record.error = message;
+        logCtx.record.completedAt = new Date().toISOString();
+        flushLlmLog(logCtx);
+      }
+      res.status(502).json({ error: `${message} (Log saved: logs/${logCtx.fileName})` });
     }
+  });
+
+  // List & inspect saved per-request LLM logs in logs/
+  app.get('/api/logs', (_req, res) => {
+    try {
+      ensureLogsDir();
+      const files = fs
+        .readdirSync(LOGS_DIR)
+        .filter((f) => f.endsWith('.log') || f.endsWith('.txt') || f.endsWith('.json'))
+        .sort()
+        .reverse()
+        .slice(0, 100);
+      res.json({ logsDir: 'logs/', files });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to list logs.';
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  app.get('/api/logs/:filename', (req, res) => {
+    const safeName = path.basename(req.params.filename || '');
+    if (
+      !safeName ||
+      (!safeName.endsWith('.log') && !safeName.endsWith('.txt') && !safeName.endsWith('.json'))
+    ) {
+      res.status(400).json({ error: 'Invalid log filename.' });
+      return;
+    }
+    const target = path.join(LOGS_DIR, safeName);
+    if (!fs.existsSync(target)) {
+      res.status(404).json({ error: 'Log file not found.' });
+      return;
+    }
+    res.type(safeName.endsWith('.json') ? 'application/json' : 'text/plain').send(
+      fs.readFileSync(target, 'utf-8')
+    );
   });
 
   if (process.env.NODE_ENV !== 'production') {
@@ -1187,15 +2017,9 @@ Answer follow-up questions in strictly realistic, grounded, real-world terms—d
     });
   }
 
-  http.createServer(app).listen(PRIMARY_PORT, '0.0.0.0', () => {
-    console.log(`Astro AI Studio listening on http://0.0.0.0:${PRIMARY_PORT}`);
+  http.createServer(app).listen(PORT, '0.0.0.0', () => {
+    console.log(`Astro AI Studio listening on http://0.0.0.0:${PORT}`);
   });
-
-  if (process.env.DISABLE_HMR === 'true' && PRIMARY_PORT !== PREVIEW_PORT) {
-    http.createServer(app).listen(PREVIEW_PORT, '0.0.0.0', () => {
-      console.log(`Astro AI Studio preview bridge listening on http://0.0.0.0:${PREVIEW_PORT}`);
-    });
-  }
 }
 
 startServer();
