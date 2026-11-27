@@ -36,11 +36,12 @@ import {
   monthDiffInclusive,
   parseNatalDump,
 } from './data/sampleProfiles';
-import { MagicCardDeck } from './components/MagicCardDeck';
+import { MagicCardDeck, ImportPromptCopyResult } from './components/MagicCardDeck';
 import { OpenedCardSpread } from './components/OpenedCardSpread';
 import { NatalConfigModal } from './components/NatalConfigModal';
 import { RightImportPanel } from './components/RightImportPanel';
 import { buildAnalyzePromptParts } from './data/promptBuilder';
+import { buildCondensedImportPrompt } from './data/importPromptBuilder';
 import { getCardTheme } from './data/cardThemes';
 import { ProviderIcon } from './components/ProviderIcon';
 import { parseImportedReport } from './data/importedReportParser';
@@ -299,6 +300,7 @@ export default function App() {
     userMsgId: string;
   } | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [copiedCondensedPrompt, setCopiedCondensedPrompt] = useState(false);
   const [showFullPromptPreview, setShowFullPromptPreview] = useState(false);
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
   const [editingThreadTitle, setEditingThreadTitle] = useState('');
@@ -590,9 +592,7 @@ export default function App() {
     activeThread.futureWindow,
   ]);
 
-  const handleCopyFullPrompt = async () => {
-    if (!fullConsultingPrompt) return;
-    const textToCopy = fullConsultingPrompt.fullCombinedPrompt;
+  const copyPlainTextToClipboard = async (textToCopy: string): Promise<boolean> => {
     let copied = false;
 
     try {
@@ -621,10 +621,31 @@ export default function App() {
       }
     }
 
+    return copied;
+  };
+
+  const handleCopyFullPrompt = async () => {
+    if (!fullConsultingPrompt) return;
+    const copied = await copyPlainTextToClipboard(fullConsultingPrompt.fullCombinedPrompt);
     if (copied) {
       setCopiedPrompt(true);
       window.setTimeout(() => setCopiedPrompt(false), 2200);
     }
+  };
+
+  const handleCopyImportCardPrompt = async (): Promise<ImportPromptCopyResult | null> => {
+    if (!activeProfile || activeThread.cards.length === 0) return null;
+    const result = buildCondensedImportPrompt({
+      profileName: activeProfile.name,
+      natalDump: activeProfile.natalDump,
+      narrativeWindow: activeThread.narrativeWindow,
+      cards: activeThread.cards,
+      futureWindow: activeThread.futureWindow,
+    });
+    await copyPlainTextToClipboard(result.condensedPrompt);
+    setCopiedCondensedPrompt(true);
+    window.setTimeout(() => setCopiedCondensedPrompt(false), 2400);
+    return result;
   };
 
   const persistProfiles = async (nextProfiles: AstroProfile[]) => {
@@ -2541,6 +2562,7 @@ export default function App() {
                         }
                       }}
                       onSubmitThread={handleSubmitThread}
+                      onCopyImportPrompt={handleCopyImportCardPrompt}
                     />
                   </div>
                 )}
@@ -2643,6 +2665,30 @@ export default function App() {
                         <>
                           <ChevronUp className="w-3.5 h-3.5" />
                           <span>View Prompt</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => void handleCopyImportCardPrompt()}
+                      title="Copy condensed Import Card prompt (decorations stripped, all data intact) for Claude or ChatGPT"
+                      aria-label="Copy condensed Import Card prompt"
+                      className={`px-3 py-1.5 rounded-lg border backdrop-blur-md text-xs font-medium inline-flex items-center gap-1.5 transition-colors ${
+                        copiedCondensedPrompt
+                          ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200'
+                          : 'border-white/15 bg-white/[0.045] hover:bg-white/[0.09] text-[#EDEFF5]'
+                      }`}
+                    >
+                      {copiedCondensedPrompt ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Copied Import Prompt</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-[#D4A853]" />
+                          <span>Copy Condensed</span>
                         </>
                       )}
                     </button>

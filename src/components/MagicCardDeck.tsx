@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import {
   ArrowLeft,
+  Check,
+  Copy,
   Layers,
   Plus,
   RotateCw,
@@ -16,6 +18,13 @@ import { getCardTheme } from '../data/cardThemes';
 
 export const MAX_MAGIC_CARDS = 1;
 
+export interface ImportPromptCopyResult {
+  condensedPrompt: string;
+  originalLength: number;
+  condensedLength: number;
+  savedPercent: number;
+}
+
 interface MagicCardDeckProps {
   startMonth: string;
   endMonth: string;
@@ -26,6 +35,7 @@ interface MagicCardDeckProps {
   onChangeCards: (cards: MagicCard[]) => void;
   onDraftTitleChange?: (draftTitle: string) => void;
   onSubmitThread: () => void;
+  onCopyImportPrompt?: () => Promise<ImportPromptCopyResult | null>;
 }
 
 const DOMAINS: CardDomain[] = [
@@ -48,6 +58,7 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
   onChangeCards,
   onDraftTitleChange,
   onSubmitThread,
+  onCopyImportPrompt,
 }) => {
   const bounds = isRangeValid
     ? getMonthBounds(startMonth, endMonth)
@@ -64,6 +75,9 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
   const [narrative, setNarrative] = useState('');
   const [question, setQuestion] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [copiedImportPrompt, setCopiedImportPrompt] = useState(false);
+  const [lastCondensedInfo, setLastCondensedInfo] = useState<ImportPromptCopyResult | null>(null);
+  const [showCondensedPreview, setShowCondensedPreview] = useState(false);
 
   const isMaxReached = cards.length >= MAX_MAGIC_CARDS && !editingId;
   const activeTheme = getCardTheme(domain);
@@ -175,6 +189,16 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
     onChangeCards(cards.filter((c) => c.id !== id));
     if (editingId === id) {
       resetDraft();
+    }
+  };
+
+  const handleImportCardClick = async () => {
+    if (!onCopyImportPrompt || cards.length === 0 || !isRangeValid || !isFutureValid) return;
+    const result = await onCopyImportPrompt();
+    if (result) {
+      setLastCondensedInfo(result);
+      setCopiedImportPrompt(true);
+      window.setTimeout(() => setCopiedImportPrompt(false), 2600);
     }
   };
 
@@ -434,20 +458,70 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
             </span>
           </div>
 
-          <button
-            type="button"
-            disabled={cards.length === 0 || !isRangeValid || !isFutureValid || isSubmitting}
-            onClick={onSubmitThread}
-            className="px-5 py-2 text-xs font-semibold rounded-xl transition-colors flex items-center gap-2 whitespace-nowrap shrink-0 disabled:opacity-40 disabled:cursor-not-allowed bg-[#D4A853] hover:bg-[#DFB96B] text-[#111318] shadow-[0_6px_18px_rgba(212,168,83,0.25)]"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>
-              {isSubmitting
-                ? 'Reading Card...'
-                : 'Submit Card'}
-            </span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {onCopyImportPrompt && (
+              <button
+                type="button"
+                disabled={cards.length === 0 || !isRangeValid || !isFutureValid || isSubmitting}
+                onClick={() => void handleImportCardClick()}
+                title="Copy condensed prompt (decorations removed, all data intact) for Claude or ChatGPT without calling any LLM"
+                className={`px-4 py-2 text-xs font-semibold rounded-xl border transition-colors flex items-center gap-2 whitespace-nowrap shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
+                  copiedImportPrompt
+                    ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200'
+                    : 'border-[#D4A853]/50 bg-[#D4A853]/10 hover:bg-[#D4A853]/20 text-[#D4A853]'
+                }`}
+              >
+                {copiedImportPrompt ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Copied Prompt</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Import Card</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            <button
+              type="button"
+              disabled={cards.length === 0 || !isRangeValid || !isFutureValid || isSubmitting}
+              onClick={onSubmitThread}
+              className="px-5 py-2 text-xs font-semibold rounded-xl transition-colors flex items-center gap-2 whitespace-nowrap shrink-0 disabled:opacity-40 disabled:cursor-not-allowed bg-[#D4A853] hover:bg-[#DFB96B] text-[#111318] shadow-[0_6px_18px_rgba(212,168,83,0.25)]"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>
+                {isSubmitting
+                  ? 'Reading Card...'
+                  : 'Submit Card'}
+              </span>
+            </button>
+          </div>
         </div>
+
+        {lastCondensedInfo && cards.length > 0 && (
+          <div className="rounded-xl border border-emerald-400/25 bg-emerald-500/[0.07] px-3.5 py-2.5 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+              <span className="text-emerald-200">
+                Condensed Import Prompt copied ({lastCondensedInfo.condensedLength.toLocaleString()} chars · {lastCondensedInfo.savedPercent}% smaller, all data preserved). Run in Claude/ChatGPT and upload the `.md` on the right.
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowCondensedPreview((v) => !v)}
+                className="font-medium text-[#D4A853] hover:underline whitespace-nowrap shrink-0"
+              >
+                {showCondensedPreview ? 'Hide Text' : 'Inspect Condensed'}
+              </button>
+            </div>
+            {showCondensedPreview && (
+              <pre className="max-h-56 overflow-y-auto rounded-lg border border-white/10 bg-black/30 p-3 text-[11px] font-mono leading-relaxed text-[#C8CEDB] whitespace-pre-wrap break-words select-all">
+                {lastCondensedInfo.condensedPrompt}
+              </pre>
+            )}
+          </div>
+        )}
 
         {cards.length === 0 ? (
           <div className="border border-dashed border-white/15 rounded-xl py-5 text-center bg-white/[0.02] backdrop-blur-md">
