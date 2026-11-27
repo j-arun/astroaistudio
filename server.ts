@@ -10,7 +10,8 @@ import { buildGrahaTimelineExtractionPrompt } from './src/data/timelinePromptBui
 
 dotenv.config();
 
-const PORT = Number(process.env.PORT || process.env.ASTRO_PORT) || 3000;
+const PRIMARY_PORT = Number(process.env.ASTRO_PORT) || 6001;
+const PREVIEW_PORT = 3000;
 const DATA_DIR = path.resolve(process.cwd(), '.astro-studio-data');
 const LOGS_DIR = path.resolve(process.cwd(), 'logs');
 const PROFILES_FILE = path.join(DATA_DIR, 'profiles.json');
@@ -2017,9 +2018,15 @@ Answer follow-up questions in strictly realistic, grounded, real-world terms—d
     });
   }
 
-  http.createServer(app).listen(PORT, '0.0.0.0', () => {
-    console.log(`Astro AI Studio listening on http://0.0.0.0:${PORT}`);
+  http.createServer(app).listen(PRIMARY_PORT, '0.0.0.0', () => {
+    console.log(`Astro AI Studio listening on http://0.0.0.0:${PRIMARY_PORT}`);
   });
+
+  if (process.env.DISABLE_HMR === 'true' && PRIMARY_PORT !== PREVIEW_PORT) {
+    http.createServer(app).listen(PREVIEW_PORT, '0.0.0.0', () => {
+      console.log(`Astro AI Studio preview bridge listening on http://0.0.0.0:${PREVIEW_PORT}`);
+    });
+  }
 }
 
 startServer();
