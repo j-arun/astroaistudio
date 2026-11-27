@@ -5,7 +5,7 @@ import http from 'http';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
-import { buildAnalyzePromptParts } from './src/data/promptBuilder.ts';
+import { buildAnalyzePromptParts, stripDateOfBirth } from './src/data/promptBuilder.ts';
 import { buildGrahaTimelineExtractionPrompt } from './src/data/timelinePromptBuilder.ts';
 
 dotenv.config();
@@ -1847,11 +1847,13 @@ async function startServer() {
       )
       .join('\n');
 
+    const cleanNatalDump = stripDateOfBirth(typeof natalDump === 'string' ? natalDump : '');
+
     const systemInstruction = `You are Astro AI Studio conducting a persistent multi-turn thread for ${profileName || 'the user'}.
 All 3 Context Folds remain permanently active for this entire thread:
 
 [FOLD 1 — SESSION NATAL BASELINE]
-${natalDump}
+${cleanNatalDump}
 
 [FOLD 2 — PAST CALIBRATION NARRATIVE: ${narrativeWindow?.startMonth} to ${narrativeWindow?.endMonth}]
 Transits:

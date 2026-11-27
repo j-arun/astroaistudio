@@ -1,3 +1,5 @@
+import { stripDateOfBirth } from './promptBuilder';
+
 export interface GrahaExtractionPromptInput {
   domain: string;
   title: string;
@@ -35,7 +37,7 @@ export function getMonthWindowBounds(
 
 export function anonymizeAstroText(rawText: string): string {
   if (!rawText) return '';
-  return rawText
+  return stripDateOfBirth(rawText)
     .replace(/PROFILE:\s*[^\n|]+(\|[^\n]*)?/gi, 'PROFILE: [REDACTED]')
     .replace(
       /^(NAME|FULL NAME|DATE OF BIRTH|DOB|BIRTH DATE|BIRTH PLACE|PLACE OF BIRTH|TIME OF BIRTH|TOB|POB|LOCATION)\s*:.*$/gim,
