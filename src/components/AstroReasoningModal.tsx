@@ -34,14 +34,29 @@ const STATE_LABELS = [
   'Leans toward the outcome: pull, renewed attention',
 ] as const;
 
-const COL_BG = 'rgba(13, 17, 25, 0.78)';
-const COL_CARD = 'rgba(255, 255, 255, 0.045)';
-const COL_FG = '#ece6dc';
-const COL_MUT = '#a39a8e';
-const COL_LN = 'rgba(255, 255, 255, 0.12)';
-const COL_POS = '#5fcf8f';
-const COL_NEG = '#ff7b6b';
-const COL_NEU = '#9a9186';
+const DARK_PALETTE = {
+  bg: 'rgba(13, 17, 25, 0.78)',
+  card: 'rgba(255, 255, 255, 0.045)',
+  fg: '#ece6dc',
+  mut: '#a39a8e',
+  ln: 'rgba(255, 255, 255, 0.12)',
+  pos: '#5fcf8f',
+  neg: '#ff7b6b',
+  neu: '#9a9186',
+  goldLn: 'rgba(212, 168, 83, 0.35)',
+};
+
+const LIGHT_PALETTE = {
+  bg: 'rgba(255, 255, 255, 0.94)',
+  card: 'rgba(15, 23, 42, 0.03)',
+  fg: '#111827',
+  mut: '#4B5563',
+  ln: 'rgba(15, 23, 42, 0.12)',
+  pos: '#0F8A4B',
+  neg: '#C93B2B',
+  neu: '#64748B',
+  goldLn: 'rgba(180, 123, 30, 0.4)',
+};
 
 function parseIsoDate(s: string): Date {
   const [y, m, d] = s.split('-').map(Number);
@@ -212,6 +227,11 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
   const [day, setDay] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [animTime, setAnimTime] = useState(0);
+  const [isDark, setIsDark] = useState<boolean>(() =>
+    typeof document !== 'undefined'
+      ? document.documentElement.classList.contains('dark')
+      : true
+  );
 
   // Load JSON modal dialog state
   const [loadModalOpen, setLoadModalOpen] = useState(false);
@@ -221,6 +241,30 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
   const sparkRef = useRef<SVGSVGElement | null>(null);
   const dayRef = useRef(day);
   dayRef.current = day;
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const syncTheme = () => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    };
+    syncTheme();
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  const palette = isDark ? DARK_PALETTE : LIGHT_PALETTE;
+  const COL_BG = palette.bg;
+  const COL_CARD = palette.card;
+  const COL_FG = palette.fg;
+  const COL_MUT = palette.mut;
+  const COL_LN = palette.ln;
+  const COL_POS = palette.pos;
+  const COL_NEG = palette.neg;
+  const COL_NEU = palette.neu;
 
   const activeData: GrahaTimelineData | undefined = localOverrideData || reading.grahaTimeline;
 
@@ -388,13 +432,13 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-md p-2 sm:p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 dark:bg-black/65 backdrop-blur-md p-2 sm:p-4"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{ backgroundColor: COL_BG, color: COL_FG, borderColor: COL_LN }}
-        className="w-full max-w-6xl h-[92vh] sm:h-[88vh] flex flex-col rounded-2xl border backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_28px_80px_rgba(0,0,0,0.68)] overflow-hidden"
+        className="w-full max-w-6xl h-[92vh] sm:h-[88vh] flex flex-col rounded-2xl border backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_28px_80px_rgba(15,23,42,0.22)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_28px_80px_rgba(0,0,0,0.68)] overflow-hidden"
       >
         {/* Top Modal Header */}
         <div
@@ -402,12 +446,12 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
           className="px-4 py-2.5 border-b backdrop-blur-xl flex flex-wrap items-center justify-between gap-2 shrink-0"
         >
           <div className="flex items-center gap-2.5 min-w-0">
-            <BookOpen className="w-4 h-4 text-[#D4A853] shrink-0" />
+            <BookOpen className="w-4 h-4 text-[#9A6712] dark:text-[#D4A853] shrink-0" />
             <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-[#ece6dc] truncate">
+              <h3 className="text-sm font-semibold text-[#111827] dark:text-[#ece6dc] truncate">
                 Astrological Reasoning · {engineLabel}
               </h3>
-              <div className="flex items-center gap-1.5 text-[11px] text-[#a39a8e] truncate">
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-[#a39a8e] truncate">
                 <span className={`inline-flex items-center gap-1 font-medium ${theme.accentText}`}>
                   <DomainIcon className="w-3 h-3" />
                   <span>{theme.label}</span>
@@ -434,7 +478,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
                 className={`px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
                   viewMode === 'timeline'
                     ? 'bg-[#D4A853] text-[#111318] font-semibold'
-                    : 'text-[#a39a8e] hover:text-[#ece6dc]'
+                    : 'text-slate-600 dark:text-[#a39a8e] hover:text-[#111827] dark:hover:text-[#ece6dc]'
                 }`}
               >
                 2D Timeline
@@ -445,7 +489,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
                 className={`px-2.5 py-1 rounded-md text-xs font-medium inline-flex items-center gap-1 whitespace-nowrap transition-colors ${
                   viewMode === 'text'
                     ? 'bg-[#D4A853] text-[#111318] font-semibold'
-                    : 'text-[#a39a8e] hover:text-[#ece6dc]'
+                    : 'text-slate-600 dark:text-[#a39a8e] hover:text-[#111827] dark:hover:text-[#ece6dc]'
                 }`}
               >
                 <FileText className="w-3.5 h-3.5" />
@@ -459,7 +503,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
               disabled={isBuildingTimeline}
               title="Re-run Request 2 extraction on this engine"
               style={{ borderColor: COL_LN }}
-              className="px-2.5 py-1.5 rounded-lg border text-xs font-medium text-[#ece6dc] hover:bg-white/[0.06] disabled:opacity-40 inline-flex items-center gap-1.5 whitespace-nowrap transition-colors"
+              className="px-2.5 py-1.5 rounded-lg border text-xs font-medium text-[#111827] dark:text-[#ece6dc] hover:bg-slate-900/[0.06] dark:hover:bg-white/[0.06] disabled:opacity-40 inline-flex items-center gap-1.5 whitespace-nowrap transition-colors"
             >
               <RotateCw className={`w-3.5 h-3.5 ${isBuildingTimeline ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">Rebuild</span>
@@ -469,7 +513,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
               type="button"
               onClick={handleOpenLoadJson}
               style={{ borderColor: COL_LN }}
-              className="px-2.5 py-1.5 rounded-lg border text-xs font-medium text-[#ece6dc] hover:bg-white/[0.06] inline-flex items-center gap-1.5 whitespace-nowrap transition-colors"
+              className="px-2.5 py-1.5 rounded-lg border text-xs font-medium text-[#111827] dark:text-[#ece6dc] hover:bg-slate-900/[0.06] dark:hover:bg-white/[0.06] inline-flex items-center gap-1.5 whitespace-nowrap transition-colors"
             >
               <Upload className="w-3.5 h-3.5" />
               <span>Load JSON</span>
@@ -478,7 +522,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg text-[#a39a8e] hover:text-[#ece6dc] hover:bg-white/5 transition-colors"
+              className="p-1.5 rounded-lg text-slate-500 dark:text-[#a39a8e] hover:text-[#111827] dark:hover:text-[#ece6dc] hover:bg-slate-900/[0.06] dark:hover:bg-white/5 transition-colors"
               aria-label="Close astrological reasoning window"
             >
               <X className="w-4 h-4" />
@@ -492,30 +536,30 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
             {card.question && card.question.trim() && (
               <div
                 style={{ backgroundColor: COL_CARD, borderColor: COL_LN }}
-                className="rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-4 space-y-1.5"
+                className="rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-4 space-y-1.5"
               >
-                <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[#a39a8e]">
+                <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-[#a39a8e]">
                   Question Evaluated
                 </h4>
-                <p className="text-xs font-medium leading-relaxed text-[#ece6dc]">{card.question}</p>
+                <p className="text-xs font-medium leading-relaxed text-[#111827] dark:text-[#ece6dc]">{card.question}</p>
               </div>
             )}
 
             <div
-              style={{ backgroundColor: COL_CARD, borderColor: 'rgba(212,168,83,0.35)' }}
-              className="rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] p-5 space-y-2.5"
+              style={{ backgroundColor: COL_CARD, borderColor: palette.goldLn }}
+              className="rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] p-5 space-y-2.5"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-[#D4A853]">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-[#9A6712] dark:text-[#D4A853]">
                   Why {engineLabel} Concluded This (Request 1 Reasoning)
                 </h4>
                 {reading.timingWindow && (
-                  <span className="text-xs font-mono tabular-nums text-[#a39a8e]">
+                  <span className="text-xs font-mono tabular-nums text-slate-600 dark:text-[#a39a8e]">
                     Window: {reading.timingWindow}
                   </span>
                 )}
               </div>
-              <p className="text-xs leading-relaxed text-[#ece6dc] whitespace-pre-wrap">
+              <p className="text-xs leading-relaxed text-[#111827] dark:text-[#ece6dc] whitespace-pre-wrap">
                 {reading.planetaryTriggers || 'No detailed astrological reasoning returned.'}
               </p>
             </div>
@@ -523,12 +567,12 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
             {reading.verdictSummary && (
               <div
                 style={{ backgroundColor: COL_CARD, borderColor: COL_LN }}
-                className="rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-4 space-y-1.5"
+                className="rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-4 space-y-1.5"
               >
-                <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[#a39a8e]">
+                <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-[#a39a8e]">
                   Real-World Verdict
                 </h4>
-                <p className="text-xs leading-relaxed text-[#a39a8e]">{reading.verdictSummary}</p>
+                <p className="text-xs leading-relaxed text-slate-700 dark:text-[#a39a8e]">{reading.verdictSummary}</p>
               </div>
             )}
           </div>
@@ -692,11 +736,11 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
               {/* Right: Reasoning Panel */}
               <div className="flex-1 min-w-0 overflow-y-auto pr-1 space-y-2">
                 <div>
-                  <h4 className="text-[15px] font-semibold text-[#ece6dc] leading-snug">
+                  <h4 className="text-[15px] font-semibold text-[#111827] dark:text-[#ece6dc] leading-snug">
                     {engine.title}
                   </h4>
                   {engine.dashaLine && (
-                    <p className="text-[11px] text-[#a39a8e] mt-0.5">{engine.dashaLine}</p>
+                    <p className="text-[11px] text-slate-600 dark:text-[#a39a8e] mt-0.5">{engine.dashaLine}</p>
                   )}
                 </div>
 
@@ -711,14 +755,14 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
                   {engine.flags.map((flag, idx) => (
                     <li
                       key={`flag-${idx}`}
-                      className="list-none -ml-4 text-[#a39a8e] italic text-xs"
+                      className="list-none -ml-4 text-slate-600 dark:text-[#a39a8e] italic text-xs"
                     >
                       ⚑ {flag}
                     </li>
                   ))}
 
                   {activeFactors.length === 0 ? (
-                    <li className="list-none -ml-4 text-xs text-[#a39a8e] italic">
+                    <li className="list-none -ml-4 text-xs text-slate-500 dark:text-[#a39a8e] italic">
                       No active transit factors inside this date interval.
                     </li>
                   ) : (
@@ -732,7 +776,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
                           {e.weight > 0 ? '▲' : '▼'} {e.reasoning}
                         </div>
                         {e.whyStrength && (
-                          <small className="block text-[11px] text-[#a39a8e] tabular-nums pl-3.5 mt-0.5">
+                          <small className="block text-[11px] text-slate-600 dark:text-[#a39a8e] tabular-nums pl-3.5 mt-0.5">
                             strength {e.rawStrength}: {e.whyStrength}
                           </small>
                         )}
@@ -741,7 +785,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
                   )}
                 </ul>
 
-                <p className="text-[11px] text-[#a39a8e] pt-1 leading-relaxed">
+                <p className="text-[11px] text-slate-600 dark:text-[#a39a8e] pt-1 leading-relaxed">
                   Centre = outcome balance on this date: ▲ support minus ▼ friction. +2 or more
                   leans toward the outcome, −3 or less leans away. Green = support, red =
                   friction, dashed = friction line, thick = strong, ℞ = retrograde.
@@ -752,10 +796,10 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
                   style={{ borderColor: COL_LN }}
                   className="border-t pt-2.5 mt-2 space-y-1"
                 >
-                  <span className="block text-[11px] font-semibold text-[#D4A853]">
+                  <span className="block text-[11px] font-semibold text-[#9A6712] dark:text-[#D4A853]">
                     Full {engineLabel} Reasoning Text (Request 1)
                   </span>
-                  <p className="text-xs leading-relaxed text-[#d7d0c4] whitespace-pre-wrap">
+                  <p className="text-xs leading-relaxed text-slate-700 dark:text-[#d7d0c4] whitespace-pre-wrap">
                     {reading.planetaryTriggers}
                   </p>
                 </div>
@@ -765,7 +809,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
             {/* LAYER 2: Thin Outcome Balance Sparkline Over Entire Window */}
             <div
               style={{ backgroundColor: COL_CARD, borderColor: COL_LN }}
-              className="h-[54px] shrink-0 rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] px-2 py-1"
+              className="h-[54px] shrink-0 rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] px-2 py-1"
             >
               <svg
                 ref={sparkRef}
@@ -806,7 +850,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
             {/* LAYER 3: Play / Pause / Replay + Slider + Date + Load JSON */}
             <div
               style={{ backgroundColor: COL_CARD, borderColor: COL_LN }}
-              className="shrink-0 rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] px-3 py-2 flex items-center gap-2.5"
+              className="shrink-0 rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] px-3 py-2 flex items-center gap-2.5"
             >
               <button
                 type="button"
@@ -836,10 +880,10 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
                   setDay(val);
                 }}
                 aria-label="Date"
-                className="flex-1 min-w-0 accent-[#D4A853] cursor-pointer"
+                className="flex-1 min-w-0 accent-[#B47B1E] dark:accent-[#D4A853] cursor-pointer"
               />
 
-              <span className="min-w-[92px] text-right text-xs sm:text-sm font-semibold tabular-nums text-[#ece6dc] shrink-0">
+              <span className="min-w-[92px] text-right text-xs sm:text-sm font-semibold tabular-nums text-[#111827] dark:text-[#ece6dc] shrink-0">
                 {formattedCurrentDate}
               </span>
             </div>
@@ -849,10 +893,10 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
           <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
             <div
               style={{ backgroundColor: COL_CARD, borderColor: COL_LN }}
-              className="rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-5 space-y-3"
+              className="rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-5 space-y-3"
             >
               {isBuildingTimeline ? (
-                <div className="flex items-center gap-3 text-xs text-[#D4A853]">
+                <div className="flex items-center gap-3 text-xs text-[#9A6712] dark:text-[#D4A853]">
                   <RotateCw className="w-4 h-4 animate-spin shrink-0" />
                   <span>
                     {engineLabel} is converting its Request 1 reasoning into 2D timeline plot
@@ -863,10 +907,10 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
                 <>
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <h4 className="text-sm font-semibold text-[#ece6dc]">
+                      <h4 className="text-sm font-semibold text-[#111827] dark:text-[#ece6dc]">
                         2D Timeline Graph Not Generated Yet
                       </h4>
-                      <p className="text-xs text-[#a39a8e] mt-0.5">
+                      <p className="text-xs text-slate-600 dark:text-[#a39a8e] mt-0.5">
                         {timelineError ||
                           `Your Request 1 reasoning text is ready below. Press "Visualize 2D Graph" only if you want to send Request 2 to ${engineLabel} to plot the animation, or paste JSON via Load JSON.`}
                       </p>
@@ -884,7 +928,7 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
                         type="button"
                         onClick={handleOpenLoadJson}
                         style={{ borderColor: COL_LN }}
-                        className="px-3.5 py-1.5 rounded-lg border bg-white/[0.04] hover:bg-white/[0.08] text-xs font-medium text-[#ece6dc]"
+                        className="px-3.5 py-1.5 rounded-lg border bg-white/80 dark:bg-white/[0.04] hover:bg-slate-900/[0.06] dark:hover:bg-white/[0.08] text-xs font-medium text-[#111827] dark:text-[#ece6dc]"
                       >
                         Load JSON
                       </button>
@@ -896,12 +940,12 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
 
             <div
               style={{ backgroundColor: COL_CARD, borderColor: COL_LN }}
-              className="rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-5 space-y-2"
+              className="rounded-xl border backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-5 space-y-2"
             >
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-[#D4A853]">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-[#9A6712] dark:text-[#D4A853]">
                 Full {engineLabel} Reasoning Text (Request 1)
               </h4>
-              <p className="text-xs leading-relaxed text-[#ece6dc] whitespace-pre-wrap">
+              <p className="text-xs leading-relaxed text-[#111827] dark:text-[#ece6dc] whitespace-pre-wrap">
                 {reading.planetaryTriggers}
               </p>
             </div>
@@ -911,22 +955,22 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
         {/* Load JSON Dialog Overlay (exact validation rules from reference) */}
         {loadModalOpen && (
           <div
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/65 backdrop-blur-md p-4"
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 dark:bg-black/65 backdrop-blur-md p-4"
             onClick={() => setLoadModalOpen(false)}
           >
             <div
               onClick={(e) => e.stopPropagation()}
               style={{ backgroundColor: COL_BG, borderColor: COL_LN }}
-              className="w-full max-w-2xl rounded-2xl border backdrop-blur-2xl p-4 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_28px_80px_rgba(0,0,0,0.68)]"
+              className="w-full max-w-2xl rounded-2xl border backdrop-blur-2xl p-4 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_28px_80px_rgba(15,23,42,0.22)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_28px_80px_rgba(0,0,0,0.68)]"
             >
               <div className="flex items-center justify-between">
-                <b className="text-sm text-[#ece6dc]">
+                <b className="text-sm text-[#111827] dark:text-[#ece6dc]">
                   Paste or inspect JSON from the Request 2 extraction step
                 </b>
                 <button
                   type="button"
                   onClick={() => setLoadModalOpen(false)}
-                  className="p-1 rounded-lg text-[#a39a8e] hover:text-[#ece6dc]"
+                  className="p-1 rounded-lg text-slate-500 dark:text-[#a39a8e] hover:text-[#111827] dark:hover:text-[#ece6dc]"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -936,15 +980,15 @@ export const AstroReasoningModal: React.FC<AstroReasoningModalProps> = ({
                 onChange={(e) => setJsonInput(e.target.value)}
                 spellCheck={false}
                 style={{ borderColor: COL_LN }}
-                className="w-full h-[44vh] rounded-lg border bg-white/[0.04] backdrop-blur-md p-3 text-xs font-mono text-[#ece6dc] leading-relaxed outline-none focus:border-[#D4A853]"
+                className="w-full h-[44vh] rounded-lg border bg-slate-900/[0.03] dark:bg-white/[0.04] backdrop-blur-md p-3 text-xs font-mono text-[#111827] dark:text-[#ece6dc] leading-relaxed outline-none focus:border-[#B47B1E] dark:focus:border-[#D4A853]"
               />
-              <div className="min-h-[16px] text-xs text-[#ff7b6b]">{jsonError}</div>
+              <div className="min-h-[16px] text-xs text-red-600 dark:text-[#ff7b6b]">{jsonError}</div>
               <div className="flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setLoadModalOpen(false)}
                   style={{ borderColor: COL_LN }}
-                  className="px-4 py-1.5 rounded-lg border text-xs font-medium text-[#ece6dc] hover:bg-white/[0.06]"
+                  className="px-4 py-1.5 rounded-lg border text-xs font-medium text-[#111827] dark:text-[#ece6dc] hover:bg-slate-900/[0.06] dark:hover:bg-white/[0.06]"
                 >
                   Cancel
                 </button>

@@ -53,7 +53,7 @@ function renderInlineBold(text: string): React.ReactNode {
   return parts.map((part, idx) => {
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
       return (
-        <strong key={idx} className="font-semibold text-[#EDEFF5]">
+        <strong key={idx} className="font-semibold text-[#111827] dark:text-[#EDEFF5]">
           {part.slice(2, -2)}
         </strong>
       );
@@ -73,7 +73,7 @@ function renderFormattedMarkdownText(text: string): React.ReactNode {
     const joined = paraLines.join(' ').trim();
     if (joined) {
       blocks.push(
-        <p key={`p-${blocks.length}`} className="text-xs leading-relaxed text-[#D8DCE6]">
+        <p key={`p-${blocks.length}`} className="text-xs leading-relaxed text-slate-700 dark:text-[#D8DCE6]">
           {renderInlineBold(joined)}
         </p>
       );
@@ -84,7 +84,7 @@ function renderFormattedMarkdownText(text: string): React.ReactNode {
   const flushList = () => {
     if (listItems.length === 0) return;
     blocks.push(
-      <ul key={`ul-${blocks.length}`} className="space-y-1.5 pl-4 list-disc text-xs leading-relaxed text-[#D8DCE6]">
+      <ul key={`ul-${blocks.length}`} className="space-y-1.5 pl-4 list-disc text-xs leading-relaxed text-slate-700 dark:text-[#D8DCE6]">
         {listItems.map((item, idx) => (
           <li key={idx}>{renderInlineBold(item)}</li>
         ))}
@@ -108,7 +108,7 @@ function renderFormattedMarkdownText(text: string): React.ReactNode {
       blocks.push(
         <h5
           key={`h-${blocks.length}`}
-          className="text-xs font-semibold text-[#EDEFF5] pt-1"
+          className="text-xs font-semibold text-[#111827] dark:text-[#EDEFF5] pt-1"
         >
           {renderInlineBold(headingMatch[1].trim())}
         </h5>
@@ -277,15 +277,15 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
     <div className="space-y-6 pb-6">
       {/* Dual-Engine Tabs (Gemini vs Private LLM) shown once Private LLM is triggered/explored */}
       {showTabs && (
-        <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-2">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-900/10 dark:border-white/10 pb-2">
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setActiveTab('primary')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
                 activeTab === 'primary'
-                  ? 'bg-[#D4A853]/15 border-[#D4A853]/60 text-[#D4A853]'
-                  : 'bg-white/[0.02] border-white/10 text-[#8E95A5] hover:text-[#EDEFF5] hover:bg-white/[0.05]'
+                  ? 'bg-[#D4A853]/15 border-[#B47B1E]/60 dark:border-[#D4A853]/60 text-[#9A6712] dark:text-[#D4A853]'
+                  : 'bg-white/70 dark:bg-white/[0.02] border-slate-900/10 dark:border-white/10 text-slate-600 dark:text-[#8E95A5] hover:text-[#111827] dark:hover:text-[#EDEFF5] hover:bg-white dark:hover:bg-white/[0.05]'
               }`}
             >
               {primaryTabLabel}
@@ -299,8 +299,8 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                   hasPrivateResult && !isPostingToPrivateLlm ? 'rounded-l-lg border-r-0' : 'rounded-lg'
                 } ${
                   activeTab === 'private'
-                    ? 'bg-[#D4A853]/15 border-[#D4A853]/60 text-[#D4A853]'
-                    : 'bg-white/[0.02] border-white/10 text-[#8E95A5] hover:text-[#EDEFF5] hover:bg-white/[0.05]'
+                    ? 'bg-[#D4A853]/15 border-[#B47B1E]/60 dark:border-[#D4A853]/60 text-[#9A6712] dark:text-[#D4A853]'
+                    : 'bg-white/70 dark:bg-white/[0.02] border-slate-900/10 dark:border-white/10 text-slate-600 dark:text-[#8E95A5] hover:text-[#111827] dark:hover:text-[#EDEFF5] hover:bg-white dark:hover:bg-white/[0.05]'
                 }`}
               >
                 <Cpu className="w-3.5 h-3.5" />
@@ -317,8 +317,8 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                   aria-label="Delete Private LLM response"
                   className={`px-2 py-1.5 rounded-r-lg border transition-colors inline-flex items-center ${
                     activeTab === 'private'
-                      ? 'bg-[#D4A853]/15 border-[#D4A853]/60 text-[#D4A853]/80 hover:text-red-300 hover:bg-red-950/30'
-                      : 'bg-white/[0.02] border-white/10 text-[#6C7384] hover:text-red-300 hover:bg-red-950/30'
+                      ? 'bg-[#D4A853]/15 border-[#B47B1E]/60 dark:border-[#D4A853]/60 text-[#9A6712]/80 dark:text-[#D4A853]/80 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30'
+                      : 'bg-white/70 dark:bg-white/[0.02] border-slate-900/10 dark:border-white/10 text-slate-500 dark:text-[#6C7384] hover:text-red-600 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30'
                   }`}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -327,7 +327,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
             </div>
           </div>
 
-          <span className="text-[11px] font-mono text-[#6C7384] hidden sm:inline">
+          <span className="text-[11px] font-mono text-slate-500 dark:text-[#6C7384] hidden sm:inline">
             Same 3-fold prompt · Dual comparison
           </span>
         </div>
@@ -335,25 +335,25 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
 
       {/* Private LLM Pending / Error State on Private Tab */}
       {activeTab === 'private' && isPostingToPrivateLlm ? (
-        <div className="rounded-2xl border border-white/12 bg-white/[0.04] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_18px_44px_rgba(0,0,0,0.38)] p-10 text-center space-y-3">
-          <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl border border-[#D4A853]/40 bg-[#D4A853]/12 text-[#D4A853] mx-auto backdrop-blur-md">
+        <div className="rounded-2xl border border-slate-900/10 dark:border-white/12 bg-white/80 dark:bg-white/[0.04] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_14px_34px_rgba(15,23,42,0.07)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_18px_44px_rgba(0,0,0,0.38)] p-10 text-center space-y-3">
+          <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl border border-[#B47B1E]/40 dark:border-[#D4A853]/40 bg-[#D4A853]/15 dark:bg-[#D4A853]/12 text-[#9A6712] dark:text-[#D4A853] mx-auto backdrop-blur-md">
             <Cpu className="w-5 h-5 animate-pulse" />
           </div>
-          <h3 className="text-sm font-semibold text-[#EDEFF5]">
+          <h3 className="text-sm font-semibold text-[#111827] dark:text-[#EDEFF5]">
             Consulting Private LLM (Ollama)...
           </h3>
-          <p className="text-xs text-[#98A0B2] max-w-md mx-auto leading-relaxed">
+          <p className="text-xs text-slate-600 dark:text-[#98A0B2] max-w-md mx-auto leading-relaxed">
             Sending the exact same 3-fold prompt to your Ollama model for {pastLabel} →{' '}
             {futureLabel}.
           </p>
         </div>
       ) : activeTab === 'private' && privateLlmError && !hasPrivateResult ? (
-        <div className="rounded-2xl border border-red-400/30 bg-red-500/10 backdrop-blur-xl p-6 space-y-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+        <div className="rounded-2xl border border-red-300 dark:border-red-400/30 bg-red-50 dark:bg-red-500/10 backdrop-blur-xl p-6 space-y-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
           <div className="space-y-1">
-            <h3 className="text-sm font-semibold text-red-200">
+            <h3 className="text-sm font-semibold text-red-800 dark:text-red-200">
               Private LLM (Ollama) Request Failed
             </h3>
-            <p className="text-xs text-red-300/90 leading-relaxed">{privateLlmError}</p>
+            <p className="text-xs text-red-700 dark:text-red-300/90 leading-relaxed">{privateLlmError}</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -366,7 +366,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('primary')}
-              className="px-3.5 py-1.5 rounded-lg border border-white/15 bg-white/[0.05] hover:bg-white/[0.09] text-xs font-medium text-[#EDEFF5] transition-colors"
+              className="px-3.5 py-1.5 rounded-lg border border-slate-900/12 dark:border-white/15 bg-white/85 dark:bg-white/[0.05] hover:bg-white dark:hover:bg-white/[0.09] text-xs font-medium text-[#111827] dark:text-[#EDEFF5] transition-colors"
             >
               Back to {primaryTabLabel}
             </button>
@@ -375,10 +375,10 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
       ) : (
         <>
           {/* Macro Realistic Outlook Header */}
-          <div className="rounded-2xl border border-white/12 bg-white/[0.04] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_16px_40px_rgba(0,0,0,0.34)] p-4 space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#8E95A5]">
+          <div className="rounded-2xl border border-slate-900/10 dark:border-white/12 bg-white/80 dark:bg-white/[0.04] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_12px_32px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_16px_40px_rgba(0,0,0,0.34)] p-4 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-[#8E95A5]">
               <div className="flex flex-wrap items-center gap-2 min-w-0">
-                <h2 className="text-sm font-semibold text-[#D4A853]">
+                <h2 className="text-sm font-semibold text-[#9A6712] dark:text-[#D4A853]">
                   {isImportedThread
                     ? 'Imported Period Outlook'
                     : activeTab === 'private'
@@ -390,7 +390,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                     {thread.importFormat && (
                       <>
                         <span aria-hidden="true">·</span>
-                        <span className="font-mono uppercase text-[#EDEFF5]">
+                        <span className="font-mono uppercase font-medium text-[#111827] dark:text-[#EDEFF5]">
                           {thread.importFormat}
                         </span>
                       </>
@@ -408,8 +408,8 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                   <>
                     <span aria-hidden="true">·</span>
                     <span className="tabular-nums">{pastLabel}</span>
-                    <ArrowRight className="w-3 h-3 text-[#6C7384]" />
-                    <span className="text-[#EDEFF5] font-medium tabular-nums">{futureLabel}</span>
+                    <ArrowRight className="w-3 h-3 text-slate-400 dark:text-[#6C7384]" />
+                    <span className="text-[#111827] dark:text-[#EDEFF5] font-medium tabular-nums">{futureLabel}</span>
                     <span aria-hidden="true">·</span>
                     <span className="tabular-nums">
                       {thread.cards.length} {thread.cards.length === 1 ? 'Card' : 'Cards'}
@@ -420,7 +420,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
 
               <div
                 title={`Predicted by ${predictedModelName}`}
-                className="inline-flex items-center gap-1.5 text-[11px] font-mono text-[#B9C0D0] whitespace-nowrap shrink-0 ml-auto"
+                className="inline-flex items-center gap-1.5 text-[11px] font-mono text-slate-600 dark:text-[#B9C0D0] whitespace-nowrap shrink-0 ml-auto"
               >
                 <ProviderIcon
                   provider={activeTab === 'private' ? 'ollama' : primaryProvider}
@@ -433,7 +433,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
             </div>
 
             {activeSynthesis && (
-              <div className="text-xs leading-relaxed text-[#D8DCE6]">
+              <div className="text-xs leading-relaxed text-slate-700 dark:text-[#D8DCE6]">
                 {isImportedThread
                   ? renderFormattedMarkdownText(activeSynthesis)
                   : activeSynthesis}
@@ -445,13 +445,13 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
             /* IMPORTED THIRD-PARTY REPORT VIEW — NO MAGIC CARDS */
             <div className="space-y-4">
               {activeReading && (
-                <div className="rounded-2xl border border-white/12 bg-white/[0.035] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_18px_44px_rgba(0,0,0,0.34)] p-6 space-y-5">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
-                    <h3 className="text-sm font-semibold text-[#EDEFF5]">
+                <div className="rounded-2xl border border-slate-900/10 dark:border-white/12 bg-white/80 dark:bg-white/[0.035] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_12px_32px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_18px_44px_rgba(0,0,0,0.34)] p-6 space-y-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-900/10 dark:border-white/10 pb-3">
+                    <h3 className="text-sm font-semibold text-[#111827] dark:text-[#EDEFF5]">
                       {thread.title}
                     </h3>
                     {activeReading.timingWindow && (
-                      <span className="text-xs font-mono tabular-nums text-[#D4A853]">
+                      <span className="text-xs font-mono tabular-nums font-medium text-[#9A6712] dark:text-[#D4A853]">
                         Timing: {activeReading.timingWindow}
                       </span>
                     )}
@@ -459,7 +459,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
 
                   {activeReading.verdictSummary && (
                     <div className="space-y-2">
-                      <h4 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#D4A853]">
+                      <h4 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#9A6712] dark:text-[#D4A853]">
                         <Sparkles className="w-3.5 h-3.5" />
                         <span>Realistic Outlook</span>
                       </h4>
@@ -468,8 +468,8 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                   )}
 
                   {activeReading.guidance && (
-                    <div className="border-t border-white/10 pt-4 space-y-2">
-                      <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[#D4A853]">
+                    <div className="border-t border-slate-900/10 dark:border-white/10 pt-4 space-y-2">
+                      <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[#9A6712] dark:text-[#D4A853]">
                         Practical Guidance
                       </h4>
                       {renderFormattedMarkdownText(activeReading.guidance)}
@@ -477,10 +477,10 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                   )}
 
                   {thread.importedSections && thread.importedSections.length > 0 && (
-                    <div className="border-t border-white/10 pt-4 space-y-4">
+                    <div className="border-t border-slate-900/10 dark:border-white/10 pt-4 space-y-4">
                       {thread.importedSections.map((sec, idx) => (
                         <div key={`${sec.heading}-${idx}`} className="space-y-1.5">
-                          <h4 className="text-xs font-semibold text-[#EDEFF5]">
+                          <h4 className="text-xs font-semibold text-[#111827] dark:text-[#EDEFF5]">
                             {sec.heading}
                           </h4>
                           {renderFormattedMarkdownText(sec.content)}
@@ -496,9 +496,9 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowRawImportedSource((v) => !v)}
-                    className="px-3.5 py-2 rounded-xl border border-white/12 bg-white/[0.03] hover:bg-white/[0.07] text-xs font-medium text-[#C8CEDB] inline-flex items-center gap-1.5 transition-colors"
+                    className="px-3.5 py-2 rounded-xl border border-slate-900/12 dark:border-white/12 bg-white/80 dark:bg-white/[0.03] hover:bg-white dark:hover:bg-white/[0.07] text-xs font-medium text-slate-700 dark:text-[#C8CEDB] inline-flex items-center gap-1.5 transition-colors"
                   >
-                    <Code2 className="w-3.5 h-3.5 text-[#98A0B2]" />
+                    <Code2 className="w-3.5 h-3.5 text-slate-500 dark:text-[#98A0B2]" />
                     <span>
                       {showRawImportedSource
                         ? 'Hide Uploaded File'
@@ -518,7 +518,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                         ? 'Open 2D Astrological Reasoning Timeline'
                         : 'Open Astrological Reasoning (click Visualize 2D Graph inside to plot)'
                     }
-                    className="px-4 py-2 rounded-xl border text-xs font-medium inline-flex items-center gap-2 transition-colors backdrop-blur-md border-white/15 bg-white/[0.04] hover:bg-white/[0.08] text-[#D4A853]"
+                    className="px-4 py-2 rounded-xl border text-xs font-medium inline-flex items-center gap-2 transition-colors backdrop-blur-md border-[#B47B1E]/35 dark:border-white/15 bg-white/85 dark:bg-white/[0.04] hover:bg-amber-50/80 dark:hover:bg-white/[0.08] text-[#9A6712] dark:text-[#D4A853]"
                   >
                     <BookOpen className="w-3.5 h-3.5" />
                     <span>Astrological Reasoning — Why This Outlook</span>
@@ -527,8 +527,8 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
               </div>
 
               {showRawImportedSource && thread.importedRawContent && (
-                <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                  <pre className="max-h-96 overflow-y-auto text-[11px] font-mono leading-relaxed text-[#C8CEDB] whitespace-pre-wrap break-words">
+                <div className="rounded-2xl border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.04] dark:bg-black/30 p-4">
+                  <pre className="max-h-96 overflow-y-auto text-[11px] font-mono leading-relaxed text-slate-700 dark:text-[#C8CEDB] whitespace-pre-wrap break-words">
                     {thread.importedRawContent}
                   </pre>
                 </div>
@@ -541,9 +541,9 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                 {/* Left: Interactive Stacked Card Deck (only when multiple cards exist) */}
                 {thread.cards.length > 1 && (
                   <div className="lg:col-span-4 space-y-2.5">
-                    <div className="flex items-center justify-between text-xs text-[#8E95A5] px-1">
-                      <h3 className="flex items-center gap-1.5 text-sm font-semibold text-[#EDEFF5]">
-                        <Layers className="w-3.5 h-3.5 text-[#D4A853]" />
+                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-[#8E95A5] px-1">
+                      <h3 className="flex items-center gap-1.5 text-sm font-semibold text-[#111827] dark:text-[#EDEFF5]">
+                        <Layers className="w-3.5 h-3.5 text-[#9A6712] dark:text-[#D4A853]" />
                         <span>Stacked Cards</span>
                       </h3>
                       <span className="text-[11px]">Click to inspect</span>
@@ -566,8 +566,8 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                             } ${
                               isActive
                                 ? cardTheme.activeBorderClass
-                                : `${cardTheme.borderClass} opacity-80 hover:opacity-100`
-                            } shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_12px_28px_rgba(0,0,0,0.35)]`}
+                                : `${cardTheme.borderClass} opacity-85 hover:opacity-100`
+                            } shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_10px_24px_rgba(15,23,42,0.08)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_12px_28px_rgba(0,0,0,0.35)]`}
                             style={{ backgroundImage: cardTheme.ambientGlow }}
                           >
                             <div className="relative z-10 flex items-center justify-between text-[11px] mb-1.5">
@@ -577,14 +577,14 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                                 <CardIcon className="w-3.5 h-3.5" />
                                 <span>{cardTheme.label}</span>
                               </span>
-                              <span className="tabular-nums text-white/55">
+                              <span className="tabular-nums text-slate-500 dark:text-white/55">
                                 {card.eventDate}
                               </span>
                             </div>
-                            <div className="relative z-10 text-xs font-semibold text-[#EDEFF5] truncate">
+                            <div className="relative z-10 text-xs font-semibold text-[#111827] dark:text-[#EDEFF5] truncate">
                               {card.title}
                             </div>
-                            <div className="relative z-10 text-xs leading-relaxed text-white/65 line-clamp-2 mt-1">
+                            <div className="relative z-10 text-xs leading-relaxed text-slate-600 dark:text-white/65 line-clamp-2 mt-1">
                               Q: {card.question}
                             </div>
                           </motion.button>
@@ -607,11 +607,11 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -8 }}
                       transition={{ duration: 0.2 }}
-                      className={`relative overflow-hidden rounded-2xl border ${activeTheme.activeBorderClass} ${activeTheme.surfaceGradient} shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_20px_50px_rgba(0,0,0,0.45)] p-6 space-y-4`}
+                      className={`relative overflow-hidden rounded-2xl border ${activeTheme.activeBorderClass} ${activeTheme.surfaceGradient} shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_16px_36px_rgba(15,23,42,0.09)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_20px_50px_rgba(0,0,0,0.45)] p-6 space-y-4`}
                       style={{ backgroundImage: activeTheme.ambientGlow }}
                     >
                       {/* Card Header */}
-                      <div className="relative z-20 flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
+                      <div className="relative z-20 flex flex-wrap items-center justify-between gap-2 border-b border-slate-900/10 dark:border-white/10 pb-3">
                         <div className="flex items-center gap-2.5 text-xs">
                           <span
                             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold ${activeTheme.badgeClass}`}
@@ -622,8 +622,8 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                           <span className={`text-[11px] font-medium ${activeTheme.mutedAccentText}`}>
                             {activeTheme.tagline}
                           </span>
-                          <span className="text-white/30">·</span>
-                          <span className="text-[11px] tabular-nums text-white/65 inline-flex items-center gap-1">
+                          <span className="text-slate-400 dark:text-white/30">·</span>
+                          <span className="text-[11px] tabular-nums text-slate-600 dark:text-white/65 inline-flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
                             {activeCard.eventDate}
                           </span>
@@ -646,13 +646,13 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                                 onClick={handleTriggerPrivateLlm}
                                 title="Post this question to private LLM."
                                 aria-label="Post this question to private LLM."
-                                className="p-1.5 rounded-lg border border-white/15 bg-white/[0.05] hover:bg-[#D4A853]/20 hover:border-[#D4A853]/60 text-white/75 hover:text-[#D4A853] transition-colors flex items-center justify-center"
+                                className="p-1.5 rounded-lg border border-slate-900/12 dark:border-white/15 bg-white/80 dark:bg-white/[0.05] hover:bg-[#D4A853]/20 hover:border-[#B47B1E]/60 dark:hover:border-[#D4A853]/60 text-slate-700 dark:text-white/75 hover:text-[#9A6712] dark:hover:text-[#D4A853] transition-colors flex items-center justify-center"
                               >
                                 <Cpu className="w-3.5 h-3.5" />
                               </button>
                               <div
                                 role="tooltip"
-                                className="pointer-events-none opacity-0 group-hover/priv:opacity-100 transition-opacity duration-150 absolute top-full right-0 mt-1.5 z-30 whitespace-nowrap rounded-lg border border-white/15 bg-[#121620]/90 backdrop-blur-xl px-2.5 py-1 text-[11px] font-medium text-[#EDEFF5] shadow-xl"
+                                className="pointer-events-none opacity-0 group-hover/priv:opacity-100 transition-opacity duration-150 absolute top-full right-0 mt-1.5 z-30 whitespace-nowrap rounded-lg border border-slate-900/12 dark:border-white/15 bg-white/95 dark:bg-[#121620]/90 backdrop-blur-xl px-2.5 py-1 text-[11px] font-medium text-[#111827] dark:text-[#EDEFF5] shadow-xl"
                               >
                                 Post this question to private LLM.
                               </div>
@@ -666,7 +666,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                               onClick={handleDeletePrivate}
                               title="Delete Private LLM response"
                               aria-label="Delete Private LLM response"
-                              className="p-1.5 rounded-lg border border-white/15 bg-white/[0.05] hover:bg-red-950/40 hover:border-red-900/60 text-white/70 hover:text-red-300 transition-colors flex items-center justify-center"
+                              className="p-1.5 rounded-lg border border-slate-900/12 dark:border-white/15 bg-white/80 dark:bg-white/[0.05] hover:bg-red-50 dark:hover:bg-red-950/40 hover:border-red-300 dark:hover:border-red-900/60 text-slate-600 dark:text-white/70 hover:text-red-600 dark:hover:text-red-300 transition-colors flex items-center justify-center"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -675,14 +675,14 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                       </div>
 
                       {/* Past Event Narrative */}
-                      <div className="relative z-10 bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-xl p-3.5 space-y-1">
-                        <h4 className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
+                      <div className="relative z-10 bg-white/75 dark:bg-white/[0.04] backdrop-blur-md border border-slate-900/10 dark:border-white/10 rounded-xl p-3.5 space-y-1">
+                        <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-white/55">
                           Past Event
                         </h4>
-                        <div className="text-xs font-semibold text-[#EDEFF5]">
+                        <div className="text-xs font-semibold text-[#111827] dark:text-[#EDEFF5]">
                           {activeCard.title}
                         </div>
-                        <p className="text-xs text-white/75 leading-relaxed">
+                        <p className="text-xs text-slate-700 dark:text-white/75 leading-relaxed">
                           {activeCard.narrative}
                         </p>
                       </div>
@@ -694,36 +694,36 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                         >
                           Question
                         </h4>
-                        <p className="text-xs font-medium text-[#EDEFF5] leading-relaxed">
+                        <p className="text-xs font-medium text-[#111827] dark:text-[#EDEFF5] leading-relaxed">
                           {activeCard.question}
                         </p>
                       </div>
 
                       {/* Real-World Scenario Answer */}
                       {activeReading ? (
-                        <div className="relative z-10 border-t border-white/10 pt-4 space-y-3">
+                        <div className="relative z-10 border-t border-slate-900/10 dark:border-white/10 pt-4 space-y-3">
                           <h4
                             className={`flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider ${activeTheme.accentText}`}
                           >
                             <Sparkles className="w-3.5 h-3.5" />
                             <span>Realistic Outlook</span>
                           </h4>
-                          <p className="text-xs leading-relaxed text-[#EDEFF5]">
+                          <p className="text-xs leading-relaxed text-[#111827] dark:text-[#EDEFF5]">
                             {activeReading.verdictSummary}
                           </p>
-                          <div className="bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-xl p-3 space-y-1">
+                          <div className="bg-white/75 dark:bg-white/[0.04] backdrop-blur-md border border-slate-900/10 dark:border-white/10 rounded-xl p-3 space-y-1">
                             <h4
                               className={`text-[11px] font-semibold uppercase tracking-wider ${activeTheme.accentText}`}
                             >
                               Practical Guidance
                             </h4>
-                            <p className="text-xs text-white/80 leading-relaxed">
+                            <p className="text-xs text-slate-700 dark:text-white/80 leading-relaxed">
                               {activeReading.guidance}
                             </p>
                           </div>
                         </div>
                       ) : (
-                        <p className="relative z-10 text-xs text-white/60">
+                        <p className="relative z-10 text-xs text-slate-500 dark:text-white/60">
                           No outlook attached to this card.
                         </p>
                       )}
@@ -741,7 +741,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                             ? 'Open 2D Astrological Reasoning Timeline'
                             : 'Open Astrological Reasoning (click Visualize 2D Graph inside to plot)'
                         }
-                        className="px-4 py-2 rounded-xl border text-xs font-medium inline-flex items-center gap-2 transition-colors backdrop-blur-md border-white/15 bg-white/[0.04] hover:bg-white/[0.08] text-[#D4A853]"
+                        className="px-4 py-2 rounded-xl border text-xs font-medium inline-flex items-center gap-2 transition-colors backdrop-blur-md border-[#B47B1E]/35 dark:border-white/15 bg-white/85 dark:bg-white/[0.04] hover:bg-amber-50/80 dark:hover:bg-white/[0.08] text-[#9A6712] dark:text-[#D4A853]"
                       >
                         <BookOpen className="w-3.5 h-3.5" />
                         <span>Astrological Reasoning — Why This Outlook</span>
@@ -757,15 +757,15 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
 
       {/* Flowing Thread Follow-Up Conversation */}
       {(!isImportedThread || hasActiveProfile) && (
-      <div className="rounded-2xl border border-white/12 bg-white/[0.035] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.11),0_16px_42px_rgba(0,0,0,0.34)] p-5 space-y-4">
-        <div className="border-b border-white/10 pb-3 flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-sm font-semibold text-[#EDEFF5]">Follow-Up Questions</h3>
+      <div className="rounded-2xl border border-slate-900/10 dark:border-white/12 bg-white/80 dark:bg-white/[0.035] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_12px_32px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.11),0_16px_42px_rgba(0,0,0,0.34)] p-5 space-y-4">
+        <div className="border-b border-slate-900/10 dark:border-white/10 pb-3 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-[#111827] dark:text-[#EDEFF5]">Follow-Up Questions</h3>
 
           {!isImportedThread && (
             <button
               type="button"
               onClick={() => setIsEditingFuture((v) => !v)}
-              className="px-2.5 py-1 rounded-lg border border-[#D4A853]/40 bg-[#D4A853]/12 hover:bg-[#D4A853]/22 backdrop-blur-md text-[11px] font-medium text-[#D4A853] inline-flex items-center gap-1.5 transition-colors"
+              className="px-2.5 py-1 rounded-lg border border-[#B47B1E]/40 dark:border-[#D4A853]/40 bg-[#D4A853]/15 dark:bg-[#D4A853]/12 hover:bg-[#D4A853]/25 dark:hover:bg-[#D4A853]/22 backdrop-blur-md text-[11px] font-medium text-[#9A6712] dark:text-[#D4A853] inline-flex items-center gap-1.5 transition-colors"
             >
               <CalendarClock className="w-3.5 h-3.5" />
               <span>Future: {futureLabel} · Change</span>
@@ -775,20 +775,20 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
 
         {/* Editable Future Target Timeline */}
         {isEditingFuture && (
-          <div className="rounded-xl border border-white/12 bg-white/[0.04] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-4 space-y-3">
-            <span className="block text-xs font-semibold text-[#EDEFF5]">
+          <div className="rounded-xl border border-slate-900/10 dark:border-white/12 bg-slate-900/[0.025] dark:bg-white/[0.04] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] p-4 space-y-3">
+            <span className="block text-xs font-semibold text-[#111827] dark:text-[#EDEFF5]">
               Update Future Target Timeline (1–3 Months)
             </span>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-medium text-[#98A0B2] mb-1">
+                <label className="block text-[11px] font-medium text-slate-600 dark:text-[#98A0B2] mb-1">
                   Future From
                 </label>
                 <select
                   value={draftFutureStart}
                   onChange={(e) => setDraftFutureStart(e.target.value)}
-                  className="w-full bg-white/[0.05] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#EDEFF5] outline-none"
+                  className="w-full bg-white/90 dark:bg-white/[0.05] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#111827] dark:text-[#EDEFF5] outline-none"
                 >
                   {MONTH_YEAR_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -798,13 +798,13 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block text-[11px] font-medium text-[#98A0B2] mb-1">
+                <label className="block text-[11px] font-medium text-slate-600 dark:text-[#98A0B2] mb-1">
                   Future To
                 </label>
                 <select
                   value={draftFutureEnd}
                   onChange={(e) => setDraftFutureEnd(e.target.value)}
-                  className="w-full bg-white/[0.05] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#EDEFF5] outline-none"
+                  className="w-full bg-white/90 dark:bg-white/[0.05] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#111827] dark:text-[#EDEFF5] outline-none"
                 >
                   {MONTH_YEAR_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -816,13 +816,13 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
             </div>
 
             {futureWindowError && (
-              <p className="text-xs text-red-400">{futureWindowError}</p>
+              <p className="text-xs text-red-600 dark:text-red-400">{futureWindowError}</p>
             )}
 
-            <div className="flex items-center justify-between pt-2 border-t border-white/10">
+            <div className="flex items-center justify-between pt-2 border-t border-slate-900/10 dark:border-white/10">
               <span
                 className={`text-xs font-mono tabular-nums ${
-                  isDraftFutureValid ? 'text-[#98A0B2]' : 'text-red-400'
+                  isDraftFutureValid ? 'text-slate-600 dark:text-[#98A0B2]' : 'text-red-600 dark:text-red-400'
                 }`}
               >
                 {draftSpanMonths >= 1
@@ -837,7 +837,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                     setDraftFutureStart(thread.futureWindow.startMonth);
                     setDraftFutureEnd(thread.futureWindow.endMonth);
                   }}
-                  className="px-3 py-1.5 rounded-lg border border-white/12 bg-white/[0.04] hover:bg-white/[0.08] text-xs text-[#C8CEDB] hover:text-[#EDEFF5] transition-colors"
+                  className="px-3 py-1.5 rounded-lg border border-slate-900/12 dark:border-white/12 bg-white/85 dark:bg-white/[0.04] hover:bg-slate-900/[0.05] dark:hover:bg-white/[0.08] text-xs text-slate-700 dark:text-[#C8CEDB] hover:text-[#111827] dark:hover:text-[#EDEFF5] transition-colors"
                 >
                   Cancel
                 </button>
@@ -856,7 +856,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
 
         <div className="space-y-3">
           {thread.messages.length === 0 ? (
-            <p className="text-xs text-[#98A0B2] py-1">
+            <p className="text-xs text-slate-600 dark:text-[#98A0B2] py-1">
               Ask a follow-up about any realistic possibility, timing, or next step for your card.
             </p>
           ) : (
@@ -877,19 +877,19 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-2xl rounded-xl px-4 py-3 text-xs leading-relaxed backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.09)] ${
+                    className={`max-w-2xl rounded-xl px-4 py-3 text-xs leading-relaxed backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.09)] ${
                       msg.role === 'user'
-                        ? 'bg-white/[0.08] text-[#EDEFF5] border border-white/18'
-                        : 'bg-white/[0.04] text-[#D8DCE6] border border-white/10'
+                        ? 'bg-amber-50/90 dark:bg-white/[0.08] text-[#111827] dark:text-[#EDEFF5] border border-amber-300/70 dark:border-white/18'
+                        : 'bg-slate-900/[0.03] dark:bg-white/[0.04] text-slate-800 dark:text-[#D8DCE6] border border-slate-900/10 dark:border-white/10'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-3 text-[11px] text-[#98A0B2] mb-1">
+                    <div className="flex items-center justify-between gap-3 text-[11px] text-slate-500 dark:text-[#98A0B2] mb-1">
                       <div className="flex items-center gap-2">
                         <span
                           className={
                             msg.role === 'assistant'
-                              ? 'text-[#D4A853] font-semibold'
-                              : 'font-semibold'
+                              ? 'text-[#9A6712] dark:text-[#D4A853] font-semibold'
+                              : 'font-semibold text-[#111827] dark:text-[#EDEFF5]'
                           }
                         >
                           {msg.role === 'user' ? 'You' : msgProviderLabel}
@@ -907,7 +907,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                           type="button"
                           onClick={onRetryChat}
                           title="Retry this follow-up question with full prompt"
-                          className="inline-flex items-center gap-1 text-[11px] font-medium text-[#D4A853] hover:text-[#F0C878] transition-colors"
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-[#9A6712] dark:text-[#D4A853] hover:text-[#784F0B] dark:hover:text-[#F0C878] transition-colors"
                         >
                           <RotateCw className="w-3 h-3" />
                           <span>Retry</span>
@@ -923,14 +923,14 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
 
           {isSendingChat && (
             <div className="flex justify-start">
-              <div className="bg-white/[0.045] backdrop-blur-xl border border-white/12 rounded-xl px-4 py-3 text-xs text-[#98A0B2]">
+              <div className="bg-slate-900/[0.03] dark:bg-white/[0.045] backdrop-blur-xl border border-slate-900/10 dark:border-white/12 rounded-xl px-4 py-3 text-xs text-slate-600 dark:text-[#98A0B2]">
                 Evaluating realistic scenarios for your follow-up...
               </div>
             </div>
           )}
 
           {chatError && (
-            <div className="bg-red-500/12 backdrop-blur-md border border-red-400/30 rounded-lg px-3.5 py-2.5 text-xs text-red-200 flex flex-wrap items-center justify-between gap-3">
+            <div className="bg-red-50 dark:bg-red-500/12 backdrop-blur-md border border-red-300 dark:border-red-400/30 rounded-lg px-3.5 py-2.5 text-xs text-red-700 dark:text-red-200 flex flex-wrap items-center justify-between gap-3">
               <span className="flex-1 min-w-0">{chatError}</span>
               <button
                 type="button"
@@ -945,7 +945,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
           )}
         </div>
 
-        <form onSubmit={handleSubmitChat} className="flex items-end gap-2 pt-2 border-t border-white/10">
+        <form onSubmit={handleSubmitChat} className="flex items-end gap-2 pt-2 border-t border-slate-900/10 dark:border-white/10">
           <textarea
             rows={2}
             value={draftMessage}
@@ -963,7 +963,7 @@ export const OpenedCardSpread: React.FC<OpenedCardSpreadProps> = ({
                   } a follow-up on ${activeCard.domain} (${futureLabel})...`
                 : 'Ask a follow-up...'
             }
-            className="flex-1 bg-white/[0.04] border border-white/10 focus:border-[#D4A853] rounded-lg px-3.5 py-2.5 text-xs leading-relaxed text-[#EDEFF5] placeholder-[#555C6E] outline-none transition-colors resize-none"
+            className="flex-1 bg-white/90 dark:bg-white/[0.04] border border-slate-900/12 dark:border-white/10 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-lg px-3.5 py-2.5 text-xs leading-relaxed text-[#111827] dark:text-[#EDEFF5] placeholder-slate-400 dark:placeholder-[#555C6E] outline-none transition-colors resize-none"
           />
           <button
             type="submit"

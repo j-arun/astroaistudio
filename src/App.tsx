@@ -5,10 +5,12 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
+  Moon,
   Pencil,
   Plus,
   Settings,
   Sparkles,
+  Sun,
   Trash2,
   Upload,
   UserPlus,
@@ -52,6 +54,9 @@ const STORAGE_CONFIG_KEY = 'astro_studio_config_v2';
 const STORAGE_ACTIVE_PROFILE_KEY = 'astro_studio_active_profile_v1';
 const STORAGE_ACTIVE_THREAD_KEY = 'astro_studio_active_thread_v1';
 const STORAGE_DRAFT_STATE_KEY = 'astro_studio_draft_state_v1';
+const STORAGE_THEME_KEY = 'astro_studio_theme_v1';
+
+type AppTheme = 'primary' | 'daylight';
 
 const LEGACY_SEEDED_IDS = new Set(['profile-arun', 'profile-meera']);
 
@@ -305,6 +310,22 @@ export default function App() {
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
   const [editingThreadTitle, setEditingThreadTitle] = useState('');
   const [rightImportOpen, setRightImportOpen] = useState(true);
+  const [appTheme, setAppTheme] = useState<AppTheme>(() => {
+    try {
+      return localStorage.getItem(STORAGE_THEME_KEY) === 'daylight' ? 'daylight' : 'primary';
+    } catch {
+      return 'primary';
+    }
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', appTheme === 'primary');
+    try {
+      localStorage.setItem(STORAGE_THEME_KEY, appTheme);
+    } catch {
+      // ignore
+    }
+  }, [appTheme]);
 
   useEffect(() => {
     if (!isResizingSidebar) return;
@@ -1603,16 +1624,16 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-transparent text-[#EDEFF5] flex relative">
-      {/* LEFT SIDEBAR — FROSTED OBSIDIAN GLASS PANEL (RESIZABLE) */}
+    <div className="h-screen w-screen overflow-hidden bg-transparent text-[#111827] dark:text-[#EDEFF5] flex relative">
+      {/* LEFT SIDEBAR — FROSTED GLASS PANEL (RESIZABLE) */}
       <aside
         style={{ width: `${sidebarWidth}px` }}
-        className="shrink-0 bg-white/[0.035] backdrop-blur-2xl border-r border-white/[0.1] shadow-[inset_-1px_0_0_rgba(255,255,255,0.04)] flex flex-col justify-between relative"
+        className="shrink-0 bg-white/75 dark:bg-white/[0.035] backdrop-blur-2xl border-r border-slate-900/10 dark:border-white/[0.1] shadow-[inset_-1px_0_0_rgba(255,255,255,0.6)] dark:shadow-[inset_-1px_0_0_rgba(255,255,255,0.04)] flex flex-col justify-between relative"
       >
-        <div className="p-3.5 space-y-3 border-b border-white/[0.09]">
+        <div className="p-3.5 space-y-3 border-b border-slate-900/10 dark:border-white/[0.09]">
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold tracking-tight text-[#EDEFF5]">
+              <span className="text-sm font-semibold tracking-tight text-[#111827] dark:text-[#EDEFF5]">
                 Astro AI Studio
               </span>
               <button
@@ -1620,7 +1641,7 @@ export default function App() {
                 onClick={() => setModalMode(activeProfile ? 'edit' : 'create')}
                 title="Settings (Profile, REST APIs & Gemini/Fable LLM Adapters)"
                 aria-label="Settings"
-                className="p-1.5 rounded-lg border border-white/15 bg-white/[0.05] backdrop-blur-md text-[#D4A853] hover:border-[#D4A853]/70 hover:bg-white/[0.09] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                className="p-1.5 rounded-lg border border-slate-900/12 dark:border-white/15 bg-white/80 dark:bg-white/[0.05] backdrop-blur-md text-[#9A6712] dark:text-[#D4A853] hover:border-[#B47B1E]/60 dark:hover:border-[#D4A853]/70 hover:bg-white dark:hover:bg-white/[0.09] transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
               >
                 <Settings className="w-3.5 h-3.5" />
               </button>
@@ -1633,43 +1654,43 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setProfileMenuOpen((v) => !v)}
-                className="w-full text-left bg-white/[0.045] hover:bg-white/[0.08] backdrop-blur-md border border-white/12 rounded-xl px-3 py-2.5 transition-colors flex items-center justify-between gap-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                className="w-full text-left bg-white/75 hover:bg-white dark:bg-white/[0.045] dark:hover:bg-white/[0.08] backdrop-blur-md border border-slate-900/10 dark:border-white/12 rounded-xl px-3 py-2.5 transition-colors flex items-center justify-between gap-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-[#EDEFF5] truncate">
+                    <span className="text-xs font-semibold text-[#111827] dark:text-[#EDEFF5] truncate">
                       {activeProfile.name}
                     </span>
-                    <span className="text-[10px] font-mono text-[#D4A853]">
+                    <span className="text-[10px] font-mono text-[#9A6712] dark:text-[#D4A853]">
                       {activeProfile.personId}
                     </span>
                   </div>
-                  <div className="text-[11px] text-[#98A0B2] truncate mt-0.5">
+                  <div className="text-[11px] text-slate-500 dark:text-[#98A0B2] truncate mt-0.5">
                     {parsedNatal?.moonSign.split('(')[0].trim()} · Natal Loaded
                   </div>
                 </div>
-                <ChevronDown className="w-3.5 h-3.5 text-[#98A0B2] shrink-0" />
+                <ChevronDown className="w-3.5 h-3.5 text-slate-500 dark:text-[#98A0B2] shrink-0" />
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => setModalMode('create')}
-                className="w-full text-left bg-white/[0.04] hover:bg-white/[0.075] backdrop-blur-md border border-dashed border-white/20 rounded-xl px-3 py-2.5 transition-colors flex items-center justify-between gap-2"
+                className="w-full text-left bg-white/60 hover:bg-white/90 dark:bg-white/[0.04] dark:hover:bg-white/[0.075] backdrop-blur-md border border-dashed border-slate-900/20 dark:border-white/20 rounded-xl px-3 py-2.5 transition-colors flex items-center justify-between gap-2"
               >
                 <div className="min-w-0">
-                  <div className="text-xs font-semibold text-[#D4A853]">
+                  <div className="text-xs font-semibold text-[#9A6712] dark:text-[#D4A853]">
                     Add Profile (personId)
                   </div>
-                  <div className="text-[11px] text-[#98A0B2] mt-0.5">
+                  <div className="text-[11px] text-slate-500 dark:text-[#98A0B2] mt-0.5">
                     No profiles loaded
                   </div>
                 </div>
-                <UserPlus className="w-4 h-4 text-[#D4A853] shrink-0" />
+                <UserPlus className="w-4 h-4 text-[#9A6712] dark:text-[#D4A853] shrink-0" />
               </button>
             )}
 
             {profileMenuOpen && (
-              <div className="absolute left-0 right-0 mt-1.5 z-30 bg-[#141925]/85 backdrop-blur-2xl border border-white/15 rounded-xl overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_20px_50px_rgba(0,0,0,0.55)]">
+              <div className="absolute left-0 right-0 mt-1.5 z-30 bg-white/95 dark:bg-[#141925]/85 backdrop-blur-2xl border border-slate-900/12 dark:border-white/15 rounded-xl overflow-hidden shadow-[0_20px_50px_rgba(15,23,42,0.14)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_20px_50px_rgba(0,0,0,0.55)]">
                 <div className="py-1 max-h-56 overflow-y-auto">
                   {profiles.map((p) => {
                     const pParsed = parseNatalDump(p.natalDump, p.name);
@@ -1678,8 +1699,8 @@ export default function App() {
                         key={p.id}
                         className={`flex items-center justify-between px-2.5 py-2 text-xs transition-colors ${
                           p.id === activeProfile?.id
-                            ? 'bg-[#D4A853]/15 text-[#D4A853]'
-                            : 'text-[#EDEFF5] hover:bg-white/[0.07]'
+                            ? 'bg-[#D4A853]/18 text-[#9A6712] dark:bg-[#D4A853]/15 dark:text-[#D4A853]'
+                            : 'text-slate-800 hover:bg-slate-900/[0.05] dark:text-[#EDEFF5] dark:hover:bg-white/[0.07]'
                         }`}
                       >
                         <button
@@ -1694,7 +1715,7 @@ export default function App() {
                                 ({p.personId})
                               </span>
                             </div>
-                            <div className="text-[10px] text-[#98A0B2] truncate">
+                            <div className="text-[10px] text-slate-500 dark:text-[#98A0B2] truncate">
                               {pParsed.moonSign.split('(')[0].trim()} · {p.roleLabel}
                             </div>
                           </div>
@@ -1709,7 +1730,7 @@ export default function App() {
                             handleDeleteProfile(p.id);
                           }}
                           title={`Delete ${p.personId}`}
-                          className="p-1 text-[#7D8596] hover:text-red-400 rounded transition-colors shrink-0"
+                          className="p-1 text-slate-400 hover:text-red-600 dark:text-[#7D8596] dark:hover:text-red-400 rounded transition-colors shrink-0"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1717,7 +1738,7 @@ export default function App() {
                     );
                   })}
                 </div>
-                <div className="border-t border-white/10 p-1.5 flex flex-col gap-1">
+                <div className="border-t border-slate-900/10 dark:border-white/10 p-1.5 flex flex-col gap-1">
                   {activeProfile && (
                     <button
                       type="button"
@@ -1725,7 +1746,7 @@ export default function App() {
                         setProfileMenuOpen(false);
                         setModalMode('edit');
                       }}
-                      className="w-full text-left px-2.5 py-1.5 text-xs text-[#C8CEDB] hover:text-[#EDEFF5] hover:bg-white/[0.07] rounded-lg transition-colors"
+                      className="w-full text-left px-2.5 py-1.5 text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-900/[0.05] dark:text-[#C8CEDB] dark:hover:text-[#EDEFF5] dark:hover:bg-white/[0.07] rounded-lg transition-colors"
                     >
                       Settings (Natal, REST &amp; LLM)
                     </button>
@@ -1736,7 +1757,7 @@ export default function App() {
                       setProfileMenuOpen(false);
                       setModalMode('create');
                     }}
-                    className="w-full text-left px-2.5 py-1.5 text-xs text-[#D4A853] hover:bg-white/[0.07] rounded-lg transition-colors flex items-center gap-1.5"
+                    className="w-full text-left px-2.5 py-1.5 text-xs text-[#9A6712] dark:text-[#D4A853] hover:bg-slate-900/[0.05] dark:hover:bg-white/[0.07] rounded-lg transition-colors flex items-center gap-1.5"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     New Profile (personId)
@@ -1748,10 +1769,10 @@ export default function App() {
 
           {/* Inline Profile ID (personId) Box + Delete Button */}
           {activeProfile && (
-            <div className="bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-2">
+            <div className="bg-white/70 dark:bg-white/[0.04] backdrop-blur-md border border-slate-900/10 dark:border-white/10 rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-2">
               <label
                 htmlFor="sidebar-person-id"
-                className="text-[11px] font-mono text-[#98A0B2] whitespace-nowrap"
+                className="text-[11px] font-mono text-slate-500 dark:text-[#98A0B2] whitespace-nowrap"
               >
                 personId
               </label>
@@ -1771,15 +1792,15 @@ export default function App() {
                   placeholder="001ME"
                   className={`w-20 text-right bg-transparent text-xs font-mono tracking-wider outline-none ${
                     isValidPersonId(activeProfile.personId)
-                      ? 'text-[#D4A853]'
-                      : 'text-red-400'
+                      ? 'text-[#9A6712] dark:text-[#D4A853]'
+                      : 'text-red-600 dark:text-red-400'
                   }`}
                 />
                 <button
                   type="button"
                   onClick={() => handleDeleteProfile(activeProfile.id)}
                   title={`Delete ${activeProfile.personId}`}
-                  className="text-[#7D8596] hover:text-red-400 p-0.5 rounded transition-colors"
+                  className="text-slate-400 hover:text-red-600 dark:text-[#7D8596] dark:hover:text-red-400 p-0.5 rounded transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -1802,14 +1823,14 @@ export default function App() {
         <div className="flex-1 overflow-y-auto px-2.5 py-3 space-y-4">
           {/* Normal Threads */}
           <div className="space-y-1">
-            <div className="px-2 pb-1.5 flex items-center justify-between text-[11px] font-medium text-[#7D8596]">
+            <div className="px-2 pb-1.5 flex items-center justify-between text-[11px] font-medium text-slate-500 dark:text-[#7D8596]">
               <span>Threads</span>
               <span className="font-mono tabular-nums">{normalThreads.length}</span>
             </div>
 
             {normalThreads.length === 0 ? (
-              <div className="px-2.5 py-5 text-center border border-dashed border-white/12 bg-white/[0.02] backdrop-blur-md rounded-xl mx-1">
-                <p className="text-xs text-[#98A0B2] leading-relaxed">
+              <div className="px-2.5 py-5 text-center border border-dashed border-slate-900/15 dark:border-white/12 bg-white/50 dark:bg-white/[0.02] backdrop-blur-md rounded-xl mx-1">
+                <p className="text-xs text-slate-500 dark:text-[#98A0B2] leading-relaxed">
                   {activeProfile
                     ? 'Set your past & future periods, submit 1 Magic Card, and each reading lands here.'
                     : 'Create a profile first to start logging threads.'}
@@ -1831,8 +1852,8 @@ export default function App() {
                     }}
                     className={`group cursor-pointer rounded-xl px-2.5 py-2.5 transition-all border ${
                       isSelected
-                        ? 'bg-white/[0.09] border-white/20 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'
-                        : 'bg-transparent border-transparent hover:bg-white/[0.045] hover:border-white/[0.08]'
+                        ? 'bg-white/90 border-[#B47B1E]/40 shadow-sm dark:bg-white/[0.09] dark:border-white/20 backdrop-blur-md dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'
+                        : 'bg-transparent border-transparent hover:bg-white/60 hover:border-slate-900/10 dark:hover:bg-white/[0.045] dark:hover:border-white/[0.08]'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1.5">
@@ -1858,7 +1879,7 @@ export default function App() {
                             }}
                             onBlur={() => handleCommitRenameThread(t.id)}
                             aria-label="Edit thread name"
-                            className="flex-1 min-w-0 bg-white/[0.08] border border-[#D4A853]/70 rounded-md px-2 py-0.5 text-xs font-medium text-[#EDEFF5] outline-none"
+                            className="flex-1 min-w-0 bg-white dark:bg-white/[0.08] border border-[#B47B1E] dark:border-[#D4A853]/70 rounded-md px-2 py-0.5 text-xs font-medium text-[#111827] dark:text-[#EDEFF5] outline-none"
                           />
                           <button
                             type="button"
@@ -1869,7 +1890,7 @@ export default function App() {
                             }}
                             title="Save thread name"
                             aria-label="Save thread name"
-                            className="p-1 text-emerald-400 hover:text-emerald-300 rounded transition-colors shrink-0"
+                            className="p-1 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 rounded transition-colors shrink-0"
                           >
                             <Check className="w-3 h-3" />
                           </button>
@@ -1879,7 +1900,7 @@ export default function App() {
                             onClick={handleCancelRenameThread}
                             title="Cancel rename"
                             aria-label="Cancel rename"
-                            className="p-1 text-[#7D8596] hover:text-[#EDEFF5] rounded transition-colors shrink-0"
+                            className="p-1 text-slate-400 hover:text-slate-800 dark:text-[#7D8596] dark:hover:text-[#EDEFF5] rounded transition-colors shrink-0"
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -1896,7 +1917,9 @@ export default function App() {
                             )}
                             <p
                               className={`text-xs font-medium leading-snug truncate ${
-                                isSelected ? 'text-[#EDEFF5]' : 'text-[#C8CEDB]'
+                                isSelected
+                                  ? 'text-[#111827] dark:text-[#EDEFF5]'
+                                  : 'text-slate-700 dark:text-[#C8CEDB]'
                               }`}
                               title={t.title}
                             >
@@ -1907,7 +1930,7 @@ export default function App() {
                             <button
                               type="button"
                               onClick={(e) => handleStartRenameThread(e, t)}
-                              className="opacity-45 group-hover:opacity-100 text-[#7D8596] hover:text-[#D4A853] p-0.5 rounded transition-opacity shrink-0"
+                              className="opacity-45 group-hover:opacity-100 text-slate-400 hover:text-[#9A6712] dark:text-[#7D8596] dark:hover:text-[#D4A853] p-0.5 rounded transition-opacity shrink-0"
                               title="Edit thread name"
                               aria-label="Edit thread name"
                             >
@@ -1916,7 +1939,7 @@ export default function App() {
                             <button
                               type="button"
                               onClick={(e) => handleDeleteThread(e, t.id)}
-                              className="opacity-45 group-hover:opacity-100 text-[#7D8596] hover:text-red-400 p-0.5 rounded transition-opacity shrink-0"
+                              className="opacity-45 group-hover:opacity-100 text-slate-400 hover:text-red-600 dark:text-[#7D8596] dark:hover:text-red-400 p-0.5 rounded transition-opacity shrink-0"
                               title="Delete thread"
                               aria-label="Delete thread"
                             >
@@ -1926,18 +1949,18 @@ export default function App() {
                         </>
                       )}
                     </div>
-                    <div className="flex items-center gap-1.5 text-[10px] font-mono tabular-nums text-[#7D8596] mt-1">
+                    <div className="flex items-center gap-1.5 text-[10px] font-mono tabular-nums text-slate-500 dark:text-[#7D8596] mt-1">
                       <span>{dateStr}</span>
                       <span>·</span>
                       <span>{timeStr}</span>
                       <span>·</span>
-                      <span className="text-[#D4A853]/85">
+                      <span className="text-[#9A6712] dark:text-[#D4A853]/85">
                         {t.cards.length} {t.cards.length === 1 ? 'card' : 'cards'}
                       </span>
                       {t.step === 'narrative' && (
                         <>
                           <span>·</span>
-                          <span className="text-[#98A0B2]">Draft</span>
+                          <span className="text-slate-500 dark:text-[#98A0B2]">Draft</span>
                         </>
                       )}
                     </div>
@@ -1948,17 +1971,17 @@ export default function App() {
           </div>
 
           {/* Imported Threads (below normal threads) */}
-          <div className="border-t border-white/[0.08] pt-3 space-y-1">
-            <div className="px-2 pb-1.5 flex items-center justify-between text-[11px] font-medium text-[#7D8596]">
+          <div className="border-t border-slate-900/10 dark:border-white/[0.08] pt-3 space-y-1">
+            <div className="px-2 pb-1.5 flex items-center justify-between text-[11px] font-medium text-slate-500 dark:text-[#7D8596]">
               <span>Imported Threads</span>
               <span className="font-mono tabular-nums">{importedThreads.length}</span>
             </div>
 
             {importedThreads.length === 0 ? (
-              <div className="px-2.5 py-4 text-center border border-dashed border-white/10 bg-white/[0.015] rounded-xl mx-1">
-                <p className="text-[11px] text-[#7D8596] leading-relaxed">
-                  Upload third-party <span className="font-mono text-[#98A0B2]">.md</span> or{' '}
-                  <span className="font-mono text-[#98A0B2]">.html</span> files on the right panel.
+              <div className="px-2.5 py-4 text-center border border-dashed border-slate-900/15 dark:border-white/10 bg-white/40 dark:bg-white/[0.015] rounded-xl mx-1">
+                <p className="text-[11px] text-slate-500 dark:text-[#7D8596] leading-relaxed">
+                  Upload third-party <span className="font-mono text-slate-700 dark:text-[#98A0B2]">.md</span> or{' '}
+                  <span className="font-mono text-slate-700 dark:text-[#98A0B2]">.html</span> files on the right panel.
                 </p>
               </div>
             ) : (
@@ -1984,8 +2007,8 @@ export default function App() {
                     }}
                     className={`group cursor-pointer rounded-xl px-2.5 py-2.5 transition-all border ${
                       isSelected
-                        ? 'bg-white/[0.09] border-white/20 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'
-                        : 'bg-transparent border-transparent hover:bg-white/[0.045] hover:border-white/[0.08]'
+                        ? 'bg-white/90 border-[#B47B1E]/40 shadow-sm dark:bg-white/[0.09] dark:border-white/20 backdrop-blur-md dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'
+                        : 'bg-transparent border-transparent hover:bg-white/60 hover:border-slate-900/10 dark:hover:bg-white/[0.045] dark:hover:border-white/[0.08]'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1.5">
@@ -2011,7 +2034,7 @@ export default function App() {
                             }}
                             onBlur={() => handleCommitRenameThread(t.id)}
                             aria-label="Edit imported thread name"
-                            className="flex-1 min-w-0 bg-white/[0.08] border border-[#D4A853]/70 rounded-md px-2 py-0.5 text-xs font-medium text-[#EDEFF5] outline-none"
+                            className="flex-1 min-w-0 bg-white dark:bg-white/[0.08] border border-[#B47B1E] dark:border-[#D4A853]/70 rounded-md px-2 py-0.5 text-xs font-medium text-[#111827] dark:text-[#EDEFF5] outline-none"
                           />
                           <button
                             type="button"
@@ -2022,7 +2045,7 @@ export default function App() {
                             }}
                             title="Save thread name"
                             aria-label="Save thread name"
-                            className="p-1 text-emerald-400 hover:text-emerald-300 rounded transition-colors shrink-0"
+                            className="p-1 text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 rounded transition-colors shrink-0"
                           >
                             <Check className="w-3 h-3" />
                           </button>
@@ -2032,7 +2055,7 @@ export default function App() {
                             onClick={handleCancelRenameThread}
                             title="Cancel rename"
                             aria-label="Cancel rename"
-                            className="p-1 text-[#7D8596] hover:text-[#EDEFF5] rounded transition-colors shrink-0"
+                            className="p-1 text-slate-400 hover:text-slate-800 dark:text-[#7D8596] dark:hover:text-[#EDEFF5] rounded transition-colors shrink-0"
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -2048,7 +2071,9 @@ export default function App() {
                             />
                             <p
                               className={`text-xs font-medium leading-snug truncate ${
-                                isSelected ? 'text-[#EDEFF5]' : 'text-[#C8CEDB]'
+                                isSelected
+                                  ? 'text-[#111827] dark:text-[#EDEFF5]'
+                                  : 'text-slate-700 dark:text-[#C8CEDB]'
                               }`}
                               title={t.title}
                             >
@@ -2059,7 +2084,7 @@ export default function App() {
                             <button
                               type="button"
                               onClick={(e) => handleStartRenameThread(e, t)}
-                              className="opacity-45 group-hover:opacity-100 text-[#7D8596] hover:text-[#D4A853] p-0.5 rounded transition-opacity shrink-0"
+                              className="opacity-45 group-hover:opacity-100 text-slate-400 hover:text-[#9A6712] dark:text-[#7D8596] dark:hover:text-[#D4A853] p-0.5 rounded transition-opacity shrink-0"
                               title="Edit thread name"
                               aria-label="Edit thread name"
                             >
@@ -2068,7 +2093,7 @@ export default function App() {
                             <button
                               type="button"
                               onClick={(e) => handleDeleteThread(e, t.id)}
-                              className="opacity-45 group-hover:opacity-100 text-[#7D8596] hover:text-red-400 p-0.5 rounded transition-opacity shrink-0"
+                              className="opacity-45 group-hover:opacity-100 text-slate-400 hover:text-red-600 dark:text-[#7D8596] dark:hover:text-red-400 p-0.5 rounded transition-opacity shrink-0"
                               title="Delete thread"
                               aria-label="Delete thread"
                             >
@@ -2078,12 +2103,12 @@ export default function App() {
                         </>
                       )}
                     </div>
-                    <div className="flex items-center gap-1.5 text-[10px] font-mono tabular-nums text-[#7D8596] mt-1">
+                    <div className="flex items-center gap-1.5 text-[10px] font-mono tabular-nums text-slate-500 dark:text-[#7D8596] mt-1">
                       <span>{dateStr}</span>
                       <span>·</span>
                       <span>{timeStr}</span>
                       <span>·</span>
-                      <span className="text-[#D4A853]/85">{sourceName}</span>
+                      <span className="text-[#9A6712] dark:text-[#D4A853]/85">{sourceName}</span>
                       {t.importFormat && (
                         <>
                           <span>·</span>
@@ -2098,16 +2123,57 @@ export default function App() {
           </div>
         </div>
 
+        {/* Theme Switcher */}
+        <div className="px-3.5 py-2 border-t border-slate-900/10 dark:border-white/[0.09] bg-white/40 dark:bg-white/[0.015] flex items-center justify-between gap-2">
+          <span className="text-[11px] font-medium text-slate-500 dark:text-[#7D8596]">
+            Theme
+          </span>
+          <div
+            role="group"
+            aria-label="Workspace theme"
+            className="inline-flex items-center rounded-lg p-0.5 border border-slate-900/10 dark:border-white/12 bg-slate-900/[0.05] dark:bg-white/[0.04]"
+          >
+            <button
+              type="button"
+              onClick={() => setAppTheme('primary')}
+              aria-pressed={appTheme === 'primary'}
+              title="Primary Obsidian Gold dark theme"
+              className={`px-2 py-1 rounded-md text-[11px] font-medium inline-flex items-center gap-1 transition-colors ${
+                appTheme === 'primary'
+                  ? 'bg-[#D4A853]/18 text-[#D4A853] border border-[#D4A853]/40 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-[#98A0B2] dark:hover:text-[#EDEFF5] border border-transparent'
+              }`}
+            >
+              <Moon className="w-3 h-3" />
+              <span>Primary</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAppTheme('daylight')}
+              aria-pressed={appTheme === 'daylight'}
+              title="Daylight Alabaster light theme"
+              className={`px-2 py-1 rounded-md text-[11px] font-medium inline-flex items-center gap-1 transition-colors ${
+                appTheme === 'daylight'
+                  ? 'bg-white text-[#9A6712] border border-[#B47B1E]/35 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-[#98A0B2] dark:hover:text-[#EDEFF5] border border-transparent'
+              }`}
+            >
+              <Sun className="w-3 h-3" />
+              <span>Daylight</span>
+            </button>
+          </div>
+        </div>
+
         {/* Footer: Active LLM Adapter & Natal Load */}
-        <div className="px-4 py-2.5 border-t border-white/[0.09] bg-white/[0.02] text-[11px] text-[#7D8596] flex items-center justify-between gap-2">
-          <span className="font-mono uppercase text-[#D4A853] truncate">
+        <div className="px-4 py-2.5 border-t border-slate-900/10 dark:border-white/[0.09] bg-white/55 dark:bg-white/[0.02] text-[11px] text-slate-500 dark:text-[#7D8596] flex items-center justify-between gap-2">
+          <span className="font-mono uppercase text-[#9A6712] dark:text-[#D4A853] truncate">
             {apiConfig.llmProvider === 'ollama'
               ? `Private · ${apiConfig.ollamaModel || 'Ollama'}`
               : apiConfig.llmProvider === 'fable'
               ? 'Fable LLM'
               : 'Gemini LLM'}
           </span>
-          <span className="font-mono tabular-nums text-[#98A0B2] shrink-0">
+          <span className="font-mono tabular-nums text-slate-500 dark:text-[#98A0B2] shrink-0">
             {parsedNatal ? `${parsedNatal.tokenEstimate.toLocaleString()} tok` : '—'}
           </span>
         </div>
@@ -2131,8 +2197,8 @@ export default function App() {
       {/* MAIN WORKSPACE */}
       <main className="flex-1 min-w-0 flex flex-col bg-transparent relative">
         {/* Minimal Clean Top Bar */}
-        <header className="h-12 shrink-0 border-b border-white/[0.09] px-6 flex items-center justify-between gap-3 bg-white/[0.03] backdrop-blur-2xl shadow-[inset_0_-1px_0_rgba(255,255,255,0.03)]">
-          <span className="text-xs font-medium text-[#EDEFF5] truncate">
+        <header className="h-12 shrink-0 border-b border-slate-900/10 dark:border-white/[0.09] px-6 flex items-center justify-between gap-3 bg-white/70 dark:bg-white/[0.03] backdrop-blur-2xl shadow-[inset_0_-1px_0_rgba(255,255,255,0.6)] dark:shadow-[inset_0_-1px_0_rgba(255,255,255,0.03)]">
+          <span className="text-xs font-medium text-[#111827] dark:text-[#EDEFF5] truncate">
             {activeThread.isImported && activeThread.step === 'reading'
               ? activeThread.title
               : activeProfile
@@ -2149,7 +2215,7 @@ export default function App() {
                 type="button"
                 onClick={(e) => handleDeleteThread(e, activeThread.id)}
                 title="Delete thread"
-                className="px-2.5 py-1 rounded-lg border border-white/12 bg-white/[0.04] backdrop-blur-md hover:border-red-400/40 hover:bg-red-500/15 text-[11px] text-[#98A0B2] hover:text-red-200 inline-flex items-center gap-1.5 transition-colors shrink-0"
+                className="px-2.5 py-1 rounded-lg border border-slate-900/12 dark:border-white/12 bg-white/75 dark:bg-white/[0.04] backdrop-blur-md hover:border-red-400/50 hover:bg-red-50 dark:hover:border-red-400/40 dark:hover:bg-red-500/15 text-[11px] text-slate-600 dark:text-[#98A0B2] hover:text-red-700 dark:hover:text-red-200 inline-flex items-center gap-1.5 transition-colors shrink-0"
               >
                 <Trash2 className="w-3 h-3" />
                 <span>Delete Thread</span>
@@ -2161,8 +2227,8 @@ export default function App() {
               title="Toggle right-hand MD/HTML upload panel"
               className={`px-2.5 py-1 rounded-lg border text-[11px] font-medium inline-flex items-center gap-1.5 transition-colors shrink-0 ${
                 rightImportOpen
-                  ? 'border-[#D4A853]/50 bg-[#D4A853]/15 text-[#D4A853]'
-                  : 'border-white/12 bg-white/[0.04] hover:bg-white/[0.08] text-[#C8CEDB]'
+                  ? 'border-[#B47B1E]/45 bg-[#D4A853]/15 text-[#9A6712] dark:border-[#D4A853]/50 dark:bg-[#D4A853]/15 dark:text-[#D4A853]'
+                  : 'border-slate-900/12 bg-white/75 hover:bg-white text-slate-700 dark:border-white/12 dark:bg-white/[0.04] dark:hover:bg-white/[0.08] dark:text-[#C8CEDB]'
               }`}
             >
               <Upload className="w-3 h-3" />
@@ -2209,12 +2275,12 @@ export default function App() {
                 }
               />
             ) : !activeProfile ? (
-              <div className="bg-white/[0.04] backdrop-blur-2xl border border-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_20px_50px_rgba(0,0,0,0.4)] rounded-2xl p-8 text-center space-y-4 mt-8">
-                <h1 className="text-lg font-semibold text-[#EDEFF5]">
+              <div className="bg-white/80 dark:bg-white/[0.04] backdrop-blur-2xl border border-slate-900/10 dark:border-white/12 shadow-[0_18px_45px_rgba(15,23,42,0.08)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_20px_50px_rgba(0,0,0,0.4)] rounded-2xl p-8 text-center space-y-4 mt-8">
+                <h1 className="text-lg font-semibold text-[#111827] dark:text-[#EDEFF5]">
                   Set Up Your Profile (personId) &amp; Natal Dump
                 </h1>
-                <p className="text-sm text-[#98A0B2] max-w-lg mx-auto leading-relaxed">
-                  Enter your 5–7 character <span className="font-mono text-[#D4A853]">personId</span> (e.g., <span className="font-mono text-[#EDEFF5]">001ME</span>), configure your REST APIs and LLM Adapter (Gemini or Fable), and load your Natal Dump once for the session.
+                <p className="text-sm text-slate-600 dark:text-[#98A0B2] max-w-lg mx-auto leading-relaxed">
+                  Enter your 5–7 character <span className="font-mono text-[#9A6712] dark:text-[#D4A853]">personId</span> (e.g., <span className="font-mono text-[#111827] dark:text-[#EDEFF5]">001ME</span>), configure your REST APIs and LLM Adapter (Gemini or Fable), and load your Natal Dump once for the session.
                 </p>
                 <div className="pt-1">
                   <button
@@ -2252,7 +2318,7 @@ export default function App() {
                           ease: 'easeInOut',
                           delay: idx * 0.18,
                         }}
-                        className={`absolute w-56 h-36 overflow-hidden rounded-2xl border p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_20px_45px_rgba(0,0,0,0.45)] flex flex-col justify-between ${cTheme.surfaceGradient} ${cTheme.activeBorderClass}`}
+                        className={`absolute w-56 h-36 overflow-hidden rounded-2xl border p-4 shadow-[0_18px_40px_rgba(15,23,42,0.14)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_20px_45px_rgba(0,0,0,0.45)] flex flex-col justify-between ${cTheme.surfaceGradient} ${cTheme.activeBorderClass}`}
                         style={{ backgroundImage: cTheme.ambientGlow }}
                       >
                         <div className="relative z-10 flex items-center justify-between text-[11px]">
@@ -2260,14 +2326,14 @@ export default function App() {
                             <CardIcon className="w-3.5 h-3.5" />
                             <span>{cTheme.label}</span>
                           </span>
-                          <span className="font-mono text-[10px] text-white/50">
+                          <span className="font-mono text-[10px] text-slate-500 dark:text-white/50">
                             {card.eventDate}
                           </span>
                         </div>
-                        <div className="relative z-10 text-xs font-semibold text-[#EDEFF5] line-clamp-2">
+                        <div className="relative z-10 text-xs font-semibold text-[#111827] dark:text-[#EDEFF5] line-clamp-2">
                           {card.title}
                         </div>
-                        <div className="relative z-10 text-[10px] text-white/65 line-clamp-1">
+                        <div className="relative z-10 text-[10px] text-slate-600 dark:text-white/65 line-clamp-1">
                           {card.question}
                         </div>
                       </motion.div>
@@ -2276,8 +2342,8 @@ export default function App() {
                 </div>
 
                 <div className="text-center space-y-1.5 max-w-lg mx-auto">
-                  <div className="inline-flex items-center gap-2 text-sm font-semibold text-[#EDEFF5]">
-                    <Sparkles className="w-4 h-4 text-[#D4A853] animate-pulse" />
+                  <div className="inline-flex items-center gap-2 text-sm font-semibold text-[#111827] dark:text-[#EDEFF5]">
+                    <Sparkles className="w-4 h-4 text-[#9A6712] dark:text-[#D4A853] animate-pulse" />
                     <span>
                       Exploring Realistic Possibilities (
                       {formatMonthRangeLabel(
@@ -2287,7 +2353,7 @@ export default function App() {
                       )...
                     </span>
                   </div>
-                  <p className="text-xs text-[#8E95A5] leading-relaxed">
+                  <p className="text-xs text-slate-600 dark:text-[#8E95A5] leading-relaxed">
                     Evaluating realistic scenarios and activities that can manifest from{' '}
                     {formatYearMonthToLongLabel(activeThread.futureWindow.startMonth)} to{' '}
                     {formatYearMonthToLongLabel(activeThread.futureWindow.endMonth)} based on your{' '}
@@ -2303,22 +2369,22 @@ export default function App() {
               <div className="space-y-6">
                 {/* STAGE 1: SET PAST NARRATIVE PERIOD (FROM & TO DROPDOWNS + SET) */}
                 {!pastSet ? (
-                  <div className="max-w-xl mx-auto mt-6 bg-white/[0.04] backdrop-blur-2xl border border-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_20px_50px_rgba(0,0,0,0.4)] rounded-2xl p-6 space-y-5">
+                  <div className="max-w-xl mx-auto mt-6 bg-white/80 dark:bg-white/[0.04] backdrop-blur-2xl border border-slate-900/10 dark:border-white/12 shadow-[0_18px_45px_rgba(15,23,42,0.08)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_20px_50px_rgba(0,0,0,0.4)] rounded-2xl p-6 space-y-5">
                     <div>
-                      <div className="text-[11px] font-mono text-[#D4A853] mb-1">
+                      <div className="text-[11px] font-mono text-[#9A6712] dark:text-[#D4A853] mb-1">
                         STEP 1 OF 3
                       </div>
-                      <h1 className="text-lg font-semibold text-[#EDEFF5]">
+                      <h1 className="text-lg font-semibold text-[#111827] dark:text-[#EDEFF5]">
                         Set Past Narrative Period
                       </h1>
-                      <p className="text-xs text-[#98A0B2] mt-1">
+                      <p className="text-xs text-slate-600 dark:text-[#98A0B2] mt-1">
                         Select From and To (1–3 months max) and click Set to load this window.
                       </p>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-medium text-[#98A0B2] mb-1.5">
+                        <label className="block text-xs font-medium text-slate-600 dark:text-[#98A0B2] mb-1.5">
                           From
                         </label>
                         <select
@@ -2326,7 +2392,7 @@ export default function App() {
                           onChange={(e) =>
                             updateNarrativeWindow({ startMonth: e.target.value })
                           }
-                          className="w-full bg-white/[0.05] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-xl px-3 py-2.5 text-sm text-[#EDEFF5] outline-none transition-colors"
+                          className="w-full bg-white/90 dark:bg-white/[0.05] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-xl px-3 py-2.5 text-sm text-[#111827] dark:text-[#EDEFF5] outline-none transition-colors"
                         >
                           {MONTH_YEAR_OPTIONS.map((opt) => (
                             <option key={opt.value} value={opt.value}>
@@ -2337,7 +2403,7 @@ export default function App() {
                       </div>
 
                       <div>
-                        <label className="block text-xs font-medium text-[#98A0B2] mb-1.5">
+                        <label className="block text-xs font-medium text-slate-600 dark:text-[#98A0B2] mb-1.5">
                           To
                         </label>
                         <select
@@ -2345,7 +2411,7 @@ export default function App() {
                           onChange={(e) =>
                             updateNarrativeWindow({ endMonth: e.target.value })
                           }
-                          className="w-full bg-white/[0.05] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-xl px-3 py-2.5 text-sm text-[#EDEFF5] outline-none transition-colors"
+                          className="w-full bg-white/90 dark:bg-white/[0.05] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-xl px-3 py-2.5 text-sm text-[#111827] dark:text-[#EDEFF5] outline-none transition-colors"
                         >
                           {MONTH_YEAR_OPTIONS.map((opt) => (
                             <option key={opt.value} value={opt.value}>
@@ -2357,13 +2423,13 @@ export default function App() {
                     </div>
 
                     {timelineError && (
-                      <p className="text-xs text-red-400">{timelineError}</p>
+                      <p className="text-xs text-red-600 dark:text-red-400">{timelineError}</p>
                     )}
 
-                    <div className="flex items-center justify-between pt-2 border-t border-white/10">
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-900/10 dark:border-white/10">
                       <span
                         className={`text-xs font-mono tabular-nums ${
-                          isNarrativeValid ? 'text-[#98A0B2]' : 'text-red-400'
+                          isNarrativeValid ? 'text-slate-500 dark:text-[#98A0B2]' : 'text-red-600 dark:text-red-400'
                         }`}
                       >
                         {narrativeMonthsCount >= 1
@@ -2383,10 +2449,10 @@ export default function App() {
                 ) : !futureSet ? (
                   /* STAGE 2: SET FUTURE TARGET PERIOD (FROM & TO DROPDOWNS + SET) */
                   <div className="max-w-xl mx-auto mt-6 space-y-4">
-                    <div className="bg-white/[0.04] backdrop-blur-xl border border-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-xl px-4 py-2.5 flex items-center justify-between text-xs">
-                      <span className="text-[#C8CEDB]">
+                    <div className="bg-white/75 dark:bg-white/[0.04] backdrop-blur-xl border border-slate-900/10 dark:border-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-xl px-4 py-2.5 flex items-center justify-between text-xs">
+                      <span className="text-slate-600 dark:text-[#C8CEDB]">
                         Past Narrative:{' '}
-                        <span className="text-[#D4A853] font-medium">
+                        <span className="text-[#9A6712] dark:text-[#D4A853] font-medium">
                           {formatMonthRangeLabel(
                             activeThread.narrativeWindow.startMonth,
                             activeThread.narrativeWindow.endMonth
@@ -2396,28 +2462,28 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => setPastSet(false)}
-                        className="text-[#98A0B2] hover:text-[#EDEFF5] text-[11px]"
+                        className="text-slate-500 hover:text-slate-900 dark:text-[#98A0B2] dark:hover:text-[#EDEFF5] text-[11px]"
                       >
                         Change
                       </button>
                     </div>
 
-                    <div className="bg-white/[0.04] backdrop-blur-2xl border border-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_20px_50px_rgba(0,0,0,0.4)] rounded-2xl p-6 space-y-5">
+                    <div className="bg-white/80 dark:bg-white/[0.04] backdrop-blur-2xl border border-slate-900/10 dark:border-white/12 shadow-[0_18px_45px_rgba(15,23,42,0.08)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_20px_50px_rgba(0,0,0,0.4)] rounded-2xl p-6 space-y-5">
                       <div>
-                        <div className="text-[11px] font-mono text-[#D4A853] mb-1">
+                        <div className="text-[11px] font-mono text-[#9A6712] dark:text-[#D4A853] mb-1">
                           STEP 2 OF 3
                         </div>
-                        <h1 className="text-lg font-semibold text-[#EDEFF5]">
+                        <h1 className="text-lg font-semibold text-[#111827] dark:text-[#EDEFF5]">
                           Set Future Target Period
                         </h1>
-                        <p className="text-xs text-[#98A0B2] mt-1">
+                        <p className="text-xs text-slate-600 dark:text-[#98A0B2] mt-1">
                           Select From and To (1–3 months max) and click Set to deal your Magic Card.
                         </p>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-medium text-[#98A0B2] mb-1.5">
+                          <label className="block text-xs font-medium text-slate-600 dark:text-[#98A0B2] mb-1.5">
                             From
                           </label>
                           <select
@@ -2425,7 +2491,7 @@ export default function App() {
                             onChange={(e) =>
                               updateFutureWindow({ startMonth: e.target.value })
                             }
-                            className="w-full bg-white/[0.05] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-xl px-3 py-2.5 text-sm text-[#EDEFF5] outline-none transition-colors"
+                            className="w-full bg-white/90 dark:bg-white/[0.05] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-xl px-3 py-2.5 text-sm text-[#111827] dark:text-[#EDEFF5] outline-none transition-colors"
                           >
                             {MONTH_YEAR_OPTIONS.map((opt) => (
                               <option key={opt.value} value={opt.value}>
@@ -2436,7 +2502,7 @@ export default function App() {
                         </div>
 
                         <div>
-                          <label className="block text-xs font-medium text-[#98A0B2] mb-1.5">
+                          <label className="block text-xs font-medium text-slate-600 dark:text-[#98A0B2] mb-1.5">
                             To
                           </label>
                           <select
@@ -2444,7 +2510,7 @@ export default function App() {
                             onChange={(e) =>
                               updateFutureWindow({ endMonth: e.target.value })
                             }
-                            className="w-full bg-white/[0.05] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-xl px-3 py-2.5 text-sm text-[#EDEFF5] outline-none transition-colors"
+                            className="w-full bg-white/90 dark:bg-white/[0.05] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-xl px-3 py-2.5 text-sm text-[#111827] dark:text-[#EDEFF5] outline-none transition-colors"
                           >
                             {MONTH_YEAR_OPTIONS.map((opt) => (
                               <option key={opt.value} value={opt.value}>
@@ -2456,13 +2522,13 @@ export default function App() {
                       </div>
 
                       {timelineError && (
-                        <p className="text-xs text-red-400">{timelineError}</p>
+                        <p className="text-xs text-red-600 dark:text-red-400">{timelineError}</p>
                       )}
 
-                      <div className="flex items-center justify-between pt-2 border-t border-white/10">
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-900/10 dark:border-white/10">
                         <span
                           className={`text-xs font-mono tabular-nums ${
-                            isFutureValid ? 'text-[#98A0B2]' : 'text-red-400'
+                            isFutureValid ? 'text-slate-500 dark:text-[#98A0B2]' : 'text-red-600 dark:text-red-400'
                           }`}
                         >
                           {futureMonthsCount >= 1
@@ -2483,21 +2549,21 @@ export default function App() {
                 ) : (
                   /* STAGE 3: MAGIC CARD (1 PER THREAD) + SUBMIT CARD */
                   <div className="space-y-5">
-                    <div className="bg-white/[0.04] backdrop-blur-xl border border-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
-                      <div className="flex items-center gap-3 text-[#C8CEDB]">
+                    <div className="bg-white/75 dark:bg-white/[0.04] backdrop-blur-xl border border-slate-900/10 dark:border-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-3 text-slate-600 dark:text-[#C8CEDB]">
                         <span>
                           Past:{' '}
-                          <span className="text-[#D4A853] font-medium">
+                          <span className="text-[#9A6712] dark:text-[#D4A853] font-medium">
                             {formatMonthRangeLabel(
                               activeThread.narrativeWindow.startMonth,
                               activeThread.narrativeWindow.endMonth
                             )}
                           </span>
                         </span>
-                        <span className="text-white/30">→</span>
+                        <span className="text-slate-400 dark:text-white/30">→</span>
                         <span>
                           Future:{' '}
-                          <span className="text-[#EDEFF5] font-medium">
+                          <span className="text-[#111827] dark:text-[#EDEFF5] font-medium">
                             {formatMonthRangeLabel(
                               activeThread.futureWindow.startMonth,
                               activeThread.futureWindow.endMonth
@@ -2508,14 +2574,14 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => setFutureSet(false)}
-                        className="text-[11px] text-[#98A0B2] hover:text-[#EDEFF5]"
+                        className="text-[11px] text-slate-500 hover:text-slate-900 dark:text-[#98A0B2] dark:hover:text-[#EDEFF5]"
                       >
                         Change Future Period
                       </button>
                     </div>
 
                     {analyzeError && (
-                      <div className="bg-red-500/12 backdrop-blur-md border border-red-400/30 rounded-xl px-4 py-3 text-xs text-red-200">
+                      <div className="bg-red-50 dark:bg-red-500/12 backdrop-blur-md border border-red-300 dark:border-red-400/30 rounded-xl px-4 py-3 text-xs text-red-700 dark:text-red-200">
                         {analyzeError}
                       </div>
                     )}
@@ -2610,20 +2676,20 @@ export default function App() {
           !activeThread.isImported &&
           fullConsultingPrompt &&
           (isAnalyzing || activeThread.step === 'reading') && (
-            <div className="shrink-0 border-t border-white/[0.09] bg-white/[0.035] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+            <div className="shrink-0 border-t border-slate-900/10 dark:border-white/[0.09] bg-white/75 dark:bg-white/[0.035] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
               {showFullPromptPreview && (
-                <div className="border-b border-white/[0.09] bg-black/25 backdrop-blur-xl px-6 py-3">
+                <div className="border-b border-slate-900/10 dark:border-white/[0.09] bg-slate-900/[0.03] dark:bg-black/25 backdrop-blur-xl px-6 py-3">
                   <div className="max-w-4xl mx-auto">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-[11px] font-mono uppercase tracking-wider text-[#D4A853]">
+                      <span className="text-[11px] font-mono uppercase tracking-wider text-[#9A6712] dark:text-[#D4A853]">
                         Complete 3-Fold Prompt Dump (System + Natal + Past + Cards + Future)
                       </span>
-                      <span className="text-[11px] font-mono tabular-nums text-[#7D8596]">
+                      <span className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-[#7D8596]">
                         {fullConsultingPrompt.fullCombinedPrompt.length.toLocaleString()} chars · ~
                         {Math.ceil(fullConsultingPrompt.fullCombinedPrompt.length / 4).toLocaleString()} tok
                       </span>
                     </div>
-                    <pre className="max-h-72 overflow-y-auto rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-md p-3 text-[11px] leading-relaxed font-mono text-[#C8CDD8] whitespace-pre-wrap break-words select-all">
+                    <pre className="max-h-72 overflow-y-auto rounded-xl border border-slate-900/10 dark:border-white/10 bg-white/90 dark:bg-white/[0.03] backdrop-blur-md p-3 text-[11px] leading-relaxed font-mono text-slate-800 dark:text-[#C8CDD8] whitespace-pre-wrap break-words select-all">
                       {fullConsultingPrompt.fullCombinedPrompt}
                     </pre>
                   </div>
@@ -2633,18 +2699,18 @@ export default function App() {
               <div className="px-6 py-2.5">
                 <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
                   <div className="min-w-0 flex items-center gap-3">
-                    <span className="inline-flex items-center gap-1.5 shrink-0 text-[11px] font-mono uppercase tracking-wider text-[#D4A853]">
+                    <span className="inline-flex items-center gap-1.5 shrink-0 text-[11px] font-mono uppercase tracking-wider text-[#9A6712] dark:text-[#D4A853]">
                       <span
                         className={`w-1.5 h-1.5 rounded-full ${
-                          isAnalyzing ? 'bg-[#D4A853] animate-pulse' : 'bg-emerald-400'
+                          isAnalyzing ? 'bg-[#B47B1E] dark:bg-[#D4A853] animate-pulse' : 'bg-emerald-500 dark:bg-emerald-400'
                         }`}
                       />
                       {isAnalyzing ? 'Consulting Prompt' : 'Complete Prompt'}
                     </span>
-                    <span className="hidden sm:inline text-[11px] font-mono tabular-nums text-[#7D8596] shrink-0">
+                    <span className="hidden sm:inline text-[11px] font-mono tabular-nums text-slate-500 dark:text-[#7D8596] shrink-0">
                       {fullConsultingPrompt.fullCombinedPrompt.length.toLocaleString()} chars
                     </span>
-                    <span className="text-xs font-mono text-[#98A0B2] truncate">
+                    <span className="text-xs font-mono text-slate-600 dark:text-[#98A0B2] truncate">
                       {fullConsultingPrompt.userPrompt.replace(/\s+/g, ' ').slice(0, 140)}…
                     </span>
                   </div>
@@ -2653,7 +2719,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setShowFullPromptPreview((v) => !v)}
-                      className="px-2.5 py-1.5 rounded-lg border border-white/12 bg-white/[0.045] hover:bg-white/[0.09] backdrop-blur-md text-[11px] font-medium text-[#C8CEDB] inline-flex items-center gap-1.5 transition-colors"
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-900/12 dark:border-white/12 bg-white/80 hover:bg-white dark:bg-white/[0.045] dark:hover:bg-white/[0.09] backdrop-blur-md text-[11px] font-medium text-slate-700 dark:text-[#C8CEDB] inline-flex items-center gap-1.5 transition-colors"
                       title={showFullPromptPreview ? 'Hide complete prompt' : 'View complete prompt'}
                     >
                       {showFullPromptPreview ? (
@@ -2676,8 +2742,8 @@ export default function App() {
                       aria-label="Copy condensed Import Card prompt"
                       className={`px-3 py-1.5 rounded-lg border backdrop-blur-md text-xs font-medium inline-flex items-center gap-1.5 transition-colors ${
                         copiedCondensedPrompt
-                          ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200'
-                          : 'border-white/15 bg-white/[0.045] hover:bg-white/[0.09] text-[#EDEFF5]'
+                          ? 'border-emerald-500/40 bg-emerald-50 text-emerald-800 dark:border-emerald-400/50 dark:bg-emerald-500/15 dark:text-emerald-200'
+                          : 'border-slate-900/12 bg-white/80 hover:bg-white text-slate-800 dark:border-white/15 dark:bg-white/[0.045] dark:hover:bg-white/[0.09] dark:text-[#EDEFF5]'
                       }`}
                     >
                       {copiedCondensedPrompt ? (
@@ -2687,7 +2753,7 @@ export default function App() {
                         </>
                       ) : (
                         <>
-                          <Copy className="w-3.5 h-3.5 text-[#D4A853]" />
+                          <Copy className="w-3.5 h-3.5 text-[#9A6712] dark:text-[#D4A853]" />
                           <span>Copy Condensed</span>
                         </>
                       )}
@@ -2700,8 +2766,8 @@ export default function App() {
                       aria-label="Copy entire constructed prompt dump to clipboard"
                       className={`px-3 py-1.5 rounded-lg border backdrop-blur-md text-xs font-medium inline-flex items-center gap-1.5 transition-colors ${
                         copiedPrompt
-                          ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200'
-                          : 'border-[#D4A853]/45 bg-[#D4A853]/12 hover:bg-[#D4A853]/22 text-[#D4A853]'
+                          ? 'border-emerald-500/40 bg-emerald-50 text-emerald-800 dark:border-emerald-400/50 dark:bg-emerald-500/15 dark:text-emerald-200'
+                          : 'border-[#B47B1E]/40 bg-[#D4A853]/15 hover:bg-[#D4A853]/25 text-[#9A6712] dark:border-[#D4A853]/45 dark:bg-[#D4A853]/12 dark:hover:bg-[#D4A853]/22 dark:text-[#D4A853]'
                       }`}
                     >
                       {copiedPrompt ? (

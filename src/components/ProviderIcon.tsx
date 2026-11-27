@@ -123,7 +123,7 @@ export const ProviderIcon: React.FC<ProviderIconProps> = ({
       <span
         title={label}
         aria-label={label}
-        className="inline-flex items-center justify-center shrink-0 text-[#D4A853]"
+        className="inline-flex items-center justify-center shrink-0 text-[#9A6712] dark:text-[#D4A853]"
       >
         <FileText className={className} />
       </span>
@@ -135,7 +135,7 @@ export const ProviderIcon: React.FC<ProviderIconProps> = ({
     <span
       title={label}
       aria-label={label}
-      className="inline-flex items-center justify-center shrink-0 text-emerald-400"
+      className="inline-flex items-center justify-center shrink-0 text-emerald-600 dark:text-emerald-400"
     >
       <Cpu className={className} />
     </span>

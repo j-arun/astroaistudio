@@ -207,27 +207,27 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-sm font-semibold text-[#EDEFF5] tracking-tight">
+          <h2 className="text-sm font-semibold text-[#111827] dark:text-[#EDEFF5] tracking-tight">
             Magic Card · 1 Card Per Thread
           </h2>
-          <p className="text-xs text-[#8E95A5] mt-0.5">
+          <p className="text-xs text-slate-600 dark:text-[#8E95A5] mt-0.5">
             Choose a life theme, record what occurred ({bounds.minDate} to {bounds.maxDate}), flip to ask one focused question, and submit your card.
           </p>
         </div>
-        <span className="text-xs font-mono tabular-nums text-[#D4A853]">
+        <span className="text-xs font-mono tabular-nums font-semibold text-[#9A6712] dark:text-[#D4A853]">
           {cards.length} / {MAX_MAGIC_CARDS} card
         </span>
       </div>
 
       {/* 3D Flippable Translucent Glass Magic Card Builder */}
       {isMaxReached ? (
-        <div className="max-w-2xl mx-auto rounded-2xl border border-white/15 bg-white/[0.045] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_20px_50px_rgba(0,0,0,0.42)] p-6 text-center space-y-2">
-          <p className="text-sm font-semibold text-[#EDEFF5]">
+        <div className="max-w-2xl mx-auto rounded-2xl border border-slate-900/12 dark:border-white/15 bg-white/85 dark:bg-white/[0.045] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_14px_34px_rgba(15,23,42,0.08)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_20px_50px_rgba(0,0,0,0.42)] p-6 text-center space-y-2">
+          <p className="text-sm font-semibold text-[#111827] dark:text-[#EDEFF5]">
             1 / 1 Magic Card Ready
           </p>
-          <p className="text-xs text-[#98A0B2]">
+          <p className="text-xs text-slate-600 dark:text-[#98A0B2]">
             One focused card is staged for this thread. Click the card below to edit it, or click{' '}
-            <span className="text-[#D4A853] font-medium">Submit Card</span>.
+            <span className="text-[#9A6712] dark:text-[#D4A853] font-semibold">Submit Card</span>.
           </p>
         </div>
       ) : (
@@ -241,13 +241,13 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
             >
               {/* FRONT FACE — TRANSLUCENT DOMAIN-THEMED GLASS CARD */}
               <div
-                className={`relative w-full overflow-hidden rounded-2xl border ${activeTheme.borderClass} ${activeTheme.surfaceGradient} shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_20px_50px_rgba(0,0,0,0.45)] p-5 backface-hidden flex flex-col justify-between transition-colors duration-300 ${
+                className={`relative w-full overflow-hidden rounded-2xl border ${activeTheme.borderClass} ${activeTheme.surfaceGradient} shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_14px_34px_rgba(15,23,42,0.09)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_20px_50px_rgba(0,0,0,0.45)] p-5 backface-hidden flex flex-col justify-between transition-colors duration-300 ${
                   isFlipped ? 'pointer-events-none' : ''
                 }`}
                 style={{ backgroundImage: activeTheme.ambientGlow }}
               >
                 <div className="space-y-4 relative z-10">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div className="flex items-center justify-between border-b border-slate-900/10 dark:border-white/10 pb-3">
                     <div className="flex items-center gap-2.5 text-xs">
                       <span
                         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${activeTheme.badgeClass}`}
@@ -264,12 +264,12 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                         <button
                           type="button"
                           onClick={resetDraft}
-                          className="text-xs text-white/60 hover:text-white transition-colors"
+                          className="text-xs text-slate-600 dark:text-white/60 hover:text-[#111827] dark:hover:text-white transition-colors"
                         >
                           Cancel Edit
                         </button>
                       )}
-                      <span className="text-[11px] font-mono uppercase tracking-wider text-white/45">
+                      <span className="text-[11px] font-mono uppercase tracking-wider text-slate-400 dark:text-white/45">
                         Front
                       </span>
                     </div>
@@ -277,7 +277,7 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
 
                   {/* Domain Theme Selector */}
                   <div>
-                    <label className="block text-[11px] font-medium uppercase tracking-wider text-white/60 mb-2">
+                    <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-600 dark:text-white/60 mb-2">
                       Card Theme
                     </label>
                     <div className="flex flex-wrap gap-1.5">
@@ -294,7 +294,7 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                             className={`px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-all whitespace-nowrap shrink-0 inline-flex items-center gap-1.5 ${
                               selected
                                 ? dTheme.selectorActiveClass
-                                : 'bg-white/[0.03] text-white/70 border-white/10 hover:bg-white/[0.07] hover:text-white'
+                                : 'bg-white/75 dark:bg-white/[0.03] text-slate-700 dark:text-white/70 border-slate-900/12 dark:border-white/10 hover:bg-white dark:hover:bg-white/[0.07] hover:text-[#111827] dark:hover:text-white'
                             }`}
                           >
                             <DIcon className="w-3 h-3" />
@@ -308,7 +308,7 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                   {/* Title + Typed Date */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-white/70 mb-1.5">
+                      <label className="block text-xs font-medium text-slate-700 dark:text-white/70 mb-1.5">
                         Subject Name
                       </label>
                       <input
@@ -320,11 +320,11 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                           onDraftTitleChange?.(nextVal);
                         }}
                         placeholder="e.g., Saw crush at cafe / Bonus approval / Exam"
-                        className={`w-full bg-white/[0.04] backdrop-blur-md border border-white/10 ${activeTheme.focusBorderClass} rounded-lg px-3 py-2 text-xs text-[#EDEFF5] placeholder-white/30 outline-none transition-colors`}
+                        className={`w-full bg-white/85 dark:bg-white/[0.04] backdrop-blur-md border border-slate-900/12 dark:border-white/10 ${activeTheme.focusBorderClass} rounded-lg px-3 py-2 text-xs text-[#111827] dark:text-[#EDEFF5] placeholder-slate-400 dark:placeholder-white/30 outline-none transition-colors`}
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-white/70 mb-1.5">
+                      <label className="block text-xs font-medium text-slate-700 dark:text-white/70 mb-1.5">
                         Date (YYYY-MM-DD)
                       </label>
                       <input
@@ -332,14 +332,14 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                         value={eventDate}
                         onChange={(e) => setEventDate(e.target.value)}
                         placeholder="YYYY-MM-DD"
-                        className={`w-full bg-white/[0.04] backdrop-blur-md border border-white/10 ${activeTheme.focusBorderClass} rounded-lg px-3 py-2 text-xs tabular-nums text-[#EDEFF5] placeholder-white/30 outline-none transition-colors`}
+                        className={`w-full bg-white/85 dark:bg-white/[0.04] backdrop-blur-md border border-slate-900/12 dark:border-white/10 ${activeTheme.focusBorderClass} rounded-lg px-3 py-2 text-xs tabular-nums text-[#111827] dark:text-[#EDEFF5] placeholder-slate-400 dark:placeholder-white/30 outline-none transition-colors`}
                       />
                     </div>
                   </div>
 
                   {/* Narrative Details */}
                   <div>
-                    <label className="block text-xs font-medium text-white/70 mb-1.5">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-white/70 mb-1.5">
                       What Happened
                     </label>
                     <textarea
@@ -347,15 +347,15 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                       value={narrative}
                       onChange={(e) => setNarrative(e.target.value)}
                       placeholder="Describe what happened during this past period..."
-                      className={`w-full bg-white/[0.04] backdrop-blur-md border border-white/10 ${activeTheme.focusBorderClass} rounded-lg px-3 py-2 text-xs leading-relaxed text-[#EDEFF5] placeholder-white/30 outline-none transition-colors resize-none`}
+                      className={`w-full bg-white/85 dark:bg-white/[0.04] backdrop-blur-md border border-slate-900/12 dark:border-white/10 ${activeTheme.focusBorderClass} rounded-lg px-3 py-2 text-xs leading-relaxed text-[#111827] dark:text-[#EDEFF5] placeholder-slate-400 dark:placeholder-white/30 outline-none transition-colors resize-none`}
                     />
                   </div>
 
-                  {errorMsg && !isFlipped && <p className="text-xs text-red-300">{errorMsg}</p>}
+                  {errorMsg && !isFlipped && <p className="text-xs text-red-600 dark:text-red-300">{errorMsg}</p>}
                 </div>
 
-                <div className="relative z-10 flex items-center justify-between pt-4 mt-4 border-t border-white/10">
-                  <span className="text-[11px] font-mono text-white/45">
+                <div className="relative z-10 flex items-center justify-between pt-4 mt-4 border-t border-slate-900/10 dark:border-white/10">
+                  <span className="text-[11px] font-mono text-slate-500 dark:text-white/45">
                     {bounds.minDate} .. {bounds.maxDate}
                   </span>
                   <button
@@ -371,13 +371,13 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
 
               {/* BACK FACE — QUESTION SIDE (SAME TRANSLUCENT THEME) */}
               <div
-                className={`absolute inset-0 w-full overflow-hidden rounded-2xl border ${activeTheme.activeBorderClass} ${activeTheme.backSurfaceGradient} shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_20px_50px_rgba(0,0,0,0.48)] p-5 backface-hidden rotate-y-180 flex flex-col justify-between ${
+                className={`absolute inset-0 w-full overflow-hidden rounded-2xl border ${activeTheme.activeBorderClass} ${activeTheme.backSurfaceGradient} shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_14px_34px_rgba(15,23,42,0.1)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_20px_50px_rgba(0,0,0,0.48)] p-5 backface-hidden rotate-y-180 flex flex-col justify-between ${
                   !isFlipped ? 'pointer-events-none' : ''
                 }`}
                 style={{ backgroundImage: activeTheme.ambientGlow }}
               >
                 <div className="space-y-4 relative z-10">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div className="flex items-center justify-between border-b border-slate-900/10 dark:border-white/10 pb-3">
                     <div className="flex items-center gap-2 text-xs">
                       <span
                         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${activeTheme.badgeClass}`}
@@ -385,35 +385,35 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                         <ActiveDomainIcon className="w-3.5 h-3.5" />
                         <span>{activeTheme.label}</span>
                       </span>
-                      <span className="text-[11px] font-mono uppercase tracking-wider text-white/50">
+                      <span className="text-[11px] font-mono uppercase tracking-wider text-slate-500 dark:text-white/50">
                         Back · Question
                       </span>
                     </div>
                     <button
                       type="button"
                       onClick={() => setIsFlipped(false)}
-                      className="text-xs text-white/75 hover:text-white flex items-center gap-1 transition-colors"
+                      className="text-xs text-slate-700 dark:text-white/75 hover:text-[#111827] dark:hover:text-white flex items-center gap-1 transition-colors"
                     >
                       <ArrowLeft className="w-3 h-3" />
                       Flip to Front
                     </button>
                   </div>
 
-                  <div className="bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-xl px-3.5 py-2.5">
-                    <div className="flex items-center gap-2 text-xs text-white/60">
+                  <div className="bg-white/80 dark:bg-white/[0.04] backdrop-blur-md border border-slate-900/10 dark:border-white/10 rounded-xl px-3.5 py-2.5">
+                    <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-white/60">
                       <span className={`font-medium ${activeTheme.accentText}`}>
                         {activeTheme.label}
                       </span>
                       <span>·</span>
                       <span className="font-mono tabular-nums">{eventDate}</span>
                     </div>
-                    <p className="text-xs font-semibold text-[#EDEFF5] mt-0.5 truncate">
+                    <p className="text-xs font-semibold text-[#111827] dark:text-[#EDEFF5] mt-0.5 truncate">
                       {title || 'Untitled Event'}
                     </p>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-white/85 mb-1.5">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-white/85 mb-1.5">
                       Question for the Future Target Period
                     </label>
                     <textarea
@@ -421,15 +421,15 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                       value={question}
                       onChange={(e) => setQuestion(e.target.value)}
                       placeholder="e.g., Will I see this crush again? / Will this role bring growth?"
-                      className={`w-full bg-white/[0.04] backdrop-blur-md border border-white/10 ${activeTheme.focusBorderClass} rounded-lg px-3.5 py-2.5 text-xs leading-relaxed text-[#EDEFF5] placeholder-white/30 outline-none transition-colors resize-none`}
+                      className={`w-full bg-white/85 dark:bg-white/[0.04] backdrop-blur-md border border-slate-900/12 dark:border-white/10 ${activeTheme.focusBorderClass} rounded-lg px-3.5 py-2.5 text-xs leading-relaxed text-[#111827] dark:text-[#EDEFF5] placeholder-slate-400 dark:placeholder-white/30 outline-none transition-colors resize-none`}
                     />
                   </div>
 
-                  {errorMsg && isFlipped && <p className="text-xs text-red-300">{errorMsg}</p>}
+                  {errorMsg && isFlipped && <p className="text-xs text-red-600 dark:text-red-300">{errorMsg}</p>}
                 </div>
 
-                <div className="relative z-10 flex items-center justify-between pt-4 mt-4 border-t border-white/10">
-                  <span className="text-xs text-white/55 font-mono tabular-nums">
+                <div className="relative z-10 flex items-center justify-between pt-4 mt-4 border-t border-slate-900/10 dark:border-white/10">
+                  <span className="text-xs text-slate-500 dark:text-white/55 font-mono tabular-nums">
                     {cards.length} / {MAX_MAGIC_CARDS} card
                   </span>
                   <button
@@ -448,12 +448,12 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
       )}
 
       {/* TRANSPARENT GLASS CARD SLOT + SUBMIT CARD */}
-      <div className="rounded-2xl border border-white/12 bg-white/[0.035] backdrop-blur-2xl p-4 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.11),0_16px_42px_rgba(0,0,0,0.34)]">
+      <div className="rounded-2xl border border-slate-900/10 dark:border-white/12 bg-white/75 dark:bg-white/[0.035] backdrop-blur-2xl p-4 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_12px_32px_rgba(15,23,42,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.11),0_16px_42px_rgba(0,0,0,0.34)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-[#D4A853]" />
-            <h3 className="text-sm font-semibold text-[#EDEFF5]">Thread Card</h3>
-            <span className="text-xs font-mono tabular-nums text-[#98A0B2]">
+            <Layers className="w-4 h-4 text-[#9A6712] dark:text-[#D4A853]" />
+            <h3 className="text-sm font-semibold text-[#111827] dark:text-[#EDEFF5]">Thread Card</h3>
+            <span className="text-xs font-mono tabular-nums text-slate-600 dark:text-[#98A0B2]">
               · {cards.length} / {MAX_MAGIC_CARDS}
             </span>
           </div>
@@ -467,8 +467,8 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                 title="Copy condensed prompt (decorations removed, all data intact) for Claude or ChatGPT without calling any LLM"
                 className={`px-4 py-2 text-xs font-semibold rounded-xl border transition-colors flex items-center gap-2 whitespace-nowrap shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
                   copiedImportPrompt
-                    ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200'
-                    : 'border-[#D4A853]/50 bg-[#D4A853]/10 hover:bg-[#D4A853]/20 text-[#D4A853]'
+                    ? 'border-emerald-400/60 bg-emerald-50 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200'
+                    : 'border-[#B47B1E]/50 dark:border-[#D4A853]/50 bg-[#D4A853]/12 dark:bg-[#D4A853]/10 hover:bg-[#D4A853]/22 dark:hover:bg-[#D4A853]/20 text-[#9A6712] dark:text-[#D4A853]'
                 }`}
               >
                 {copiedImportPrompt ? (
@@ -502,21 +502,21 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
         </div>
 
         {lastCondensedInfo && cards.length > 0 && (
-          <div className="rounded-xl border border-emerald-400/25 bg-emerald-500/[0.07] px-3.5 py-2.5 space-y-2">
+          <div className="rounded-xl border border-emerald-300 dark:border-emerald-400/25 bg-emerald-50 dark:bg-emerald-500/[0.07] px-3.5 py-2.5 space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-              <span className="text-emerald-200">
+              <span className="text-emerald-800 dark:text-emerald-200">
                 Condensed Import Prompt copied ({lastCondensedInfo.condensedLength.toLocaleString()} chars · {lastCondensedInfo.savedPercent}% smaller, all data preserved). Run in Claude/ChatGPT and upload the `.md` on the right.
               </span>
               <button
                 type="button"
                 onClick={() => setShowCondensedPreview((v) => !v)}
-                className="font-medium text-[#D4A853] hover:underline whitespace-nowrap shrink-0"
+                className="font-medium text-[#9A6712] dark:text-[#D4A853] hover:underline whitespace-nowrap shrink-0"
               >
                 {showCondensedPreview ? 'Hide Text' : 'Inspect Condensed'}
               </button>
             </div>
             {showCondensedPreview && (
-              <pre className="max-h-56 overflow-y-auto rounded-lg border border-white/10 bg-black/30 p-3 text-[11px] font-mono leading-relaxed text-[#C8CEDB] whitespace-pre-wrap break-words select-all">
+              <pre className="max-h-56 overflow-y-auto rounded-lg border border-slate-900/10 dark:border-white/10 bg-slate-900/[0.04] dark:bg-black/30 p-3 text-[11px] font-mono leading-relaxed text-slate-700 dark:text-[#C8CEDB] whitespace-pre-wrap break-words select-all">
                 {lastCondensedInfo.condensedPrompt}
               </pre>
             )}
@@ -524,8 +524,8 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
         )}
 
         {cards.length === 0 ? (
-          <div className="border border-dashed border-white/15 rounded-xl py-5 text-center bg-white/[0.02] backdrop-blur-md">
-            <p className="text-xs text-[#98A0B2]">
+          <div className="border border-dashed border-slate-900/15 dark:border-white/15 rounded-xl py-5 text-center bg-slate-900/[0.02] dark:bg-white/[0.02] backdrop-blur-md">
+            <p className="text-xs text-slate-600 dark:text-[#98A0B2]">
               No card staged yet. Choose a theme above, fill in what happened, flip to ask your question, and stage your card.
             </p>
           </div>
@@ -542,8 +542,8 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                   className={`group cursor-pointer relative overflow-hidden rounded-xl border p-3.5 transition-all ${
                     cTheme.surfaceGradient
                   } ${
-                    isEditing ? cTheme.activeBorderClass : `${cTheme.borderClass} hover:border-white/30`
-                  } shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_24px_rgba(0,0,0,0.3)]`}
+                    isEditing ? cTheme.activeBorderClass : `${cTheme.borderClass} hover:border-slate-900/25 dark:hover:border-white/30`
+                  } shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_10px_24px_rgba(15,23,42,0.08)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_24px_rgba(0,0,0,0.3)]`}
                   style={{ backgroundImage: cTheme.ambientGlow }}
                 >
                   <div className="relative z-10 flex items-center justify-between gap-2 text-[11px] mb-2">
@@ -554,8 +554,8 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                         <CardIcon className="w-3.5 h-3.5" />
                         <span>{cTheme.label}</span>
                       </span>
-                      <span className="text-white/30">·</span>
-                      <span className="font-mono tabular-nums text-white/60">
+                      <span className="text-slate-400 dark:text-white/30">·</span>
+                      <span className="font-mono tabular-nums text-slate-600 dark:text-white/60">
                         {card.eventDate}
                       </span>
                     </div>
@@ -566,18 +566,18 @@ export const MagicCardDeck: React.FC<MagicCardDeckProps> = ({
                         handleRemoveFromTray(card.id);
                       }}
                       title="Remove card"
-                      className="text-white/45 hover:text-red-300 p-0.5 rounded transition-colors"
+                      className="text-slate-400 dark:text-white/45 hover:text-red-600 dark:hover:text-red-300 p-0.5 rounded transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  <p className="relative z-10 text-xs font-semibold text-[#EDEFF5] truncate">
+                  <p className="relative z-10 text-xs font-semibold text-[#111827] dark:text-[#EDEFF5] truncate">
                     {card.title}
                   </p>
-                  <p className="relative z-10 text-[11px] text-white/65 line-clamp-1 mt-1">
+                  <p className="relative z-10 text-[11px] text-slate-700 dark:text-white/65 line-clamp-1 mt-1">
                     Event: {card.narrative}
                   </p>
-                  <p className="relative z-10 text-[11px] text-white/75 line-clamp-1 mt-0.5">
+                  <p className="relative z-10 text-[11px] text-slate-800 dark:text-white/75 line-clamp-1 mt-0.5">
                     Q: {card.question}
                   </p>
                 </div>

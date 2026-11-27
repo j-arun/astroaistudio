@@ -278,36 +278,36 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="w-full max-w-3xl bg-[#121620]/80 backdrop-blur-2xl border border-white/15 rounded-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_28px_80px_rgba(0,0,0,0.65)] overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 bg-slate-900/45 dark:bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="w-full max-w-3xl bg-white/92 dark:bg-[#121620]/80 backdrop-blur-2xl border border-slate-900/12 dark:border-white/15 rounded-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_28px_80px_rgba(15,23,42,0.22)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_28px_80px_rgba(0,0,0,0.65)] overflow-hidden flex flex-col max-h-[92vh]">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-white/[0.025]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-900/10 dark:border-white/10 bg-slate-900/[0.02] dark:bg-white/[0.025]">
           <div>
-            <h2 className="text-base font-semibold text-[#EDEFF5]">
+            <h2 className="text-base font-semibold text-[#111827] dark:text-[#EDEFF5]">
               Settings · {mode === 'create' ? 'Profile, APIs & LLM' : profile?.personId || profile?.name}
             </h2>
-            <p className="text-xs text-[#98A0B2] mt-0.5">
+            <p className="text-xs text-slate-600 dark:text-[#98A0B2] mt-0.5">
               Configure session Natal Dump, REST endpoints, and choose between Gemini, Fable, or Private LLM (Ollama).
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-[#98A0B2] hover:text-[#EDEFF5] hover:bg-white/[0.06] p-1.5 rounded-lg transition-colors"
+            className="text-slate-500 dark:text-[#98A0B2] hover:text-[#111827] dark:hover:text-[#EDEFF5] hover:bg-slate-900/[0.06] dark:hover:bg-white/[0.06] p-1.5 rounded-lg transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Settings Tabs */}
-        <div className="px-5 pt-3 border-b border-white/10 flex items-center gap-2 bg-white/[0.02]">
+        <div className="px-5 pt-3 border-b border-slate-900/10 dark:border-white/10 flex items-center gap-2 bg-slate-900/[0.015] dark:bg-white/[0.02]">
           <button
             type="button"
             onClick={() => setActiveTab('profile')}
             className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
               activeTab === 'profile'
-                ? 'border-[#D4A853] text-[#D4A853]'
-                : 'border-transparent text-[#8E95A5] hover:text-[#EDEFF5]'
+                ? 'border-[#B47B1E] dark:border-[#D4A853] text-[#9A6712] dark:text-[#D4A853]'
+                : 'border-transparent text-slate-500 dark:text-[#8E95A5] hover:text-[#111827] dark:hover:text-[#EDEFF5]'
             }`}
           >
             <Globe className="w-3.5 h-3.5" />
@@ -318,8 +318,8 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
             onClick={() => setActiveTab('llm')}
             className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
               activeTab === 'llm'
-                ? 'border-[#D4A853] text-[#D4A853]'
-                : 'border-transparent text-[#8E95A5] hover:text-[#EDEFF5]'
+                ? 'border-[#B47B1E] dark:border-[#D4A853] text-[#9A6712] dark:text-[#D4A853]'
+                : 'border-transparent text-slate-500 dark:text-[#8E95A5] hover:text-[#111827] dark:hover:text-[#EDEFF5]'
             }`}
           >
             <Cpu className="w-3.5 h-3.5" />
@@ -334,12 +334,12 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-medium text-[#98A0B2]">
+                    <label className="text-xs font-medium text-slate-600 dark:text-[#98A0B2]">
                       Profile ID (personId)
                     </label>
                     <span
                       className={`text-[10px] font-mono ${
-                        personIdValid ? 'text-[#D4A853]' : 'text-[#8E95A5]'
+                        personIdValid ? 'text-[#9A6712] dark:text-[#D4A853]' : 'text-slate-500 dark:text-[#8E95A5]'
                       }`}
                     >
                       5–7 chars
@@ -351,11 +351,11 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                     value={personId}
                     onChange={(e) => setPersonId(e.target.value.toUpperCase())}
                     placeholder="e.g., 001ME"
-                    className="w-full bg-white/[0.045] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-lg px-3 py-2 text-sm font-mono tracking-wider text-[#EDEFF5] placeholder-[#6B7385] outline-none transition-colors"
+                    className="w-full bg-white/90 dark:bg-white/[0.045] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-lg px-3 py-2 text-sm font-mono tracking-wider text-[#111827] dark:text-[#EDEFF5] placeholder-slate-400 dark:placeholder-[#6B7385] outline-none transition-colors"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-[#98A0B2] mb-1.5">
+                  <label className="block text-xs font-medium text-slate-600 dark:text-[#98A0B2] mb-1.5">
                     Profile Name
                   </label>
                   <input
@@ -363,11 +363,11 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Enter name"
-                    className="w-full bg-white/[0.045] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-lg px-3 py-2 text-sm text-[#EDEFF5] placeholder-[#6B7385] outline-none transition-colors"
+                    className="w-full bg-white/90 dark:bg-white/[0.045] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-lg px-3 py-2 text-sm text-[#111827] dark:text-[#EDEFF5] placeholder-slate-400 dark:placeholder-[#6B7385] outline-none transition-colors"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-[#98A0B2] mb-1.5">
+                  <label className="block text-xs font-medium text-slate-600 dark:text-[#98A0B2] mb-1.5">
                     Label (Optional)
                   </label>
                   <input
@@ -375,16 +375,16 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                     value={roleLabel}
                     onChange={(e) => setRoleLabel(e.target.value)}
                     placeholder="e.g., Primary Chart"
-                    className="w-full bg-white/[0.045] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-lg px-3 py-2 text-sm text-[#EDEFF5] placeholder-[#6B7385] outline-none transition-colors"
+                    className="w-full bg-white/90 dark:bg-white/[0.045] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-lg px-3 py-2 text-sm text-[#111827] dark:text-[#EDEFF5] placeholder-slate-400 dark:placeholder-[#6B7385] outline-none transition-colors"
                   />
                 </div>
               </div>
 
               {/* REST API Configuration */}
-              <div className="bg-white/[0.035] backdrop-blur-xl border border-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-xl p-4 space-y-3">
+              <div className="bg-slate-900/[0.025] dark:bg-white/[0.035] backdrop-blur-xl border border-slate-900/10 dark:border-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-[#EDEFF5]">
-                    <Globe className="w-3.5 h-3.5 text-[#D4A853]" />
+                  <div className="flex items-center gap-2 text-xs font-semibold text-[#111827] dark:text-[#EDEFF5]">
+                    <Globe className="w-3.5 h-3.5 text-[#9A6712] dark:text-[#D4A853]" />
                     <span>External REST API Endpoints</span>
                   </div>
                   <button
@@ -400,7 +400,7 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-medium text-[#98A0B2] mb-1">
+                    <label className="block text-[11px] font-medium text-slate-600 dark:text-[#98A0B2] mb-1">
                       API Base URL
                     </label>
                     <input
@@ -408,12 +408,12 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                       value={baseApiUrl}
                       onChange={(e) => setBaseApiUrl(e.target.value)}
                       placeholder="http://localhost:5000"
-                      className="w-full bg-white/[0.045] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-lg px-3 py-1.5 text-xs font-mono text-[#EDEFF5] placeholder-[#6B7385] outline-none transition-colors"
+                      className="w-full bg-white/90 dark:bg-white/[0.045] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-lg px-3 py-1.5 text-xs font-mono text-[#111827] dark:text-[#EDEFF5] placeholder-slate-400 dark:placeholder-[#6B7385] outline-none transition-colors"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-[#98A0B2] mb-1">
+                    <label className="block text-[11px] font-medium text-slate-600 dark:text-[#98A0B2] mb-1">
                       Bearer Token (Optional)
                     </label>
                     <input
@@ -421,14 +421,14 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                       value={apiBearerToken}
                       onChange={(e) => setApiBearerToken(e.target.value)}
                       placeholder="Optional Authorization header"
-                      className="w-full bg-white/[0.045] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-lg px-3 py-1.5 text-xs font-mono text-[#EDEFF5] placeholder-[#6B7385] outline-none transition-colors"
+                      className="w-full bg-white/90 dark:bg-white/[0.045] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-lg px-3 py-1.5 text-xs font-mono text-[#111827] dark:text-[#EDEFF5] placeholder-slate-400 dark:placeholder-[#6B7385] outline-none transition-colors"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-medium text-[#98A0B2] mb-1">
+                    <label className="block text-[11px] font-medium text-slate-600 dark:text-[#98A0B2] mb-1">
                       Natal Endpoint Path
                     </label>
                     <input
@@ -436,12 +436,12 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                       value={natalEndpointPath}
                       onChange={(e) => setNatalEndpointPath(e.target.value)}
                       placeholder="/api/natal/dump"
-                      className="w-full bg-white/[0.045] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-lg px-3 py-1.5 text-xs font-mono text-[#EDEFF5] outline-none transition-colors"
+                      className="w-full bg-white/90 dark:bg-white/[0.045] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-lg px-3 py-1.5 text-xs font-mono text-[#111827] dark:text-[#EDEFF5] outline-none transition-colors"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-[#98A0B2] mb-1">
+                    <label className="block text-[11px] font-medium text-slate-600 dark:text-[#98A0B2] mb-1">
                       Transit Endpoint Path
                     </label>
                     <input
@@ -449,30 +449,30 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                       value={transitEndpointPath}
                       onChange={(e) => setTransitEndpointPath(e.target.value)}
                       placeholder="/api/transit/dump"
-                      className="w-full bg-white/[0.045] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-lg px-3 py-1.5 text-xs font-mono text-[#EDEFF5] outline-none transition-colors"
+                      className="w-full bg-white/90 dark:bg-white/[0.045] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-lg px-3 py-1.5 text-xs font-mono text-[#111827] dark:text-[#EDEFF5] outline-none transition-colors"
                     />
                   </div>
                 </div>
 
-                <div className="bg-black/25 backdrop-blur-md border border-white/10 rounded-lg px-3 py-2 space-y-1 text-[11px] font-mono text-[#98A0B2]">
+                <div className="bg-slate-900/[0.04] dark:bg-black/25 backdrop-blur-md border border-slate-900/10 dark:border-white/10 rounded-lg px-3 py-2 space-y-1 text-[11px] font-mono text-slate-600 dark:text-[#98A0B2]">
                   <div className="truncate">
-                    <span className="text-[#D4A853]">GET Natal:</span> {resolvedNatalPreview}
+                    <span className="text-[#9A6712] dark:text-[#D4A853] font-medium">GET Natal:</span> {resolvedNatalPreview}
                   </div>
                   <div className="truncate">
-                    <span className="text-[#D4A853]">GET Transit:</span> {resolvedTransitPreview}
+                    <span className="text-[#9A6712] dark:text-[#D4A853] font-medium">GET Transit:</span> {resolvedTransitPreview}
                   </div>
                 </div>
 
-                {fetchStatus && <p className="text-xs text-emerald-400">{fetchStatus}</p>}
+                {fetchStatus && <p className="text-xs text-emerald-700 dark:text-emerald-400">{fetchStatus}</p>}
               </div>
 
               {/* Plain-Text Natal Dump Box */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-medium text-[#98A0B2]">
+                  <label className="text-xs font-medium text-slate-600 dark:text-[#98A0B2]">
                     Plain-Text Natal Dump (Fetched from API or pasted directly)
                   </label>
-                  <span className="text-[11px] font-mono tabular-nums text-[#D4A853]">
+                  <span className="text-[11px] font-mono tabular-nums text-[#9A6712] dark:text-[#D4A853]">
                     ~{Math.round(natalDump.length / 4).toLocaleString()} tokens
                   </span>
                 </div>
@@ -481,7 +481,7 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                   value={natalDump}
                   onChange={(e) => setNatalDump(e.target.value)}
                   placeholder="Paste or fetch your plain-text natal dump here (D1–D144, Dasha–Bhukti, SAV/BAV)..."
-                  className="w-full bg-white/[0.04] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-lg p-3.5 text-xs font-mono leading-relaxed text-[#D8DCE6] placeholder-[#6B7385] outline-none resize-y transition-colors"
+                  className="w-full bg-white/90 dark:bg-white/[0.04] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-lg p-3.5 text-xs font-mono leading-relaxed text-[#111827] dark:text-[#D8DCE6] placeholder-slate-400 dark:placeholder-[#6B7385] outline-none resize-y transition-colors"
                 />
               </div>
             </>
@@ -489,7 +489,7 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
             /* TAB 2: LLM ADAPTERS (GEMINI, FABLE & PRIVATE OLLAMA) */
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-[#98A0B2] mb-2">
+                <label className="block text-xs font-medium text-slate-600 dark:text-[#98A0B2] mb-2">
                   Select Active LLM Engine Adapter
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -498,17 +498,17 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                     onClick={() => setLlmProvider('gemini')}
                     className={`text-left rounded-xl p-4 border backdrop-blur-xl transition-all ${
                       llmProvider === 'gemini'
-                        ? 'bg-[#D4A853]/15 border-[#D4A853]/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_0_24px_-6px_rgba(212,168,83,0.28)]'
-                        : 'bg-white/[0.035] border-white/10 hover:bg-white/[0.06] hover:border-white/20'
+                        ? 'bg-[#D4A853]/15 border-[#B47B1E]/70 dark:border-[#D4A853]/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_6px_20px_-6px_rgba(180,123,30,0.22)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_0_24px_-6px_rgba(212,168,83,0.28)]'
+                        : 'bg-slate-900/[0.025] dark:bg-white/[0.035] border-slate-900/10 dark:border-white/10 hover:bg-slate-900/[0.05] dark:hover:bg-white/[0.06] hover:border-slate-900/20 dark:hover:border-white/20'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-[#EDEFF5]">Gemini</span>
-                      <span className="text-[10px] font-mono text-[#D4A853]">
+                      <span className="text-sm font-semibold text-[#111827] dark:text-[#EDEFF5]">Gemini</span>
+                      <span className="text-[10px] font-mono font-semibold text-[#9A6712] dark:text-[#D4A853]">
                         {llmProvider === 'gemini' ? 'ACTIVE' : 'PUBLIC'}
                       </span>
                     </div>
-                    <p className="text-xs text-[#98A0B2] mt-1">
+                    <p className="text-xs text-slate-600 dark:text-[#98A0B2] mt-1">
                       Public Google @google/genai SDK via server environment.
                     </p>
                   </button>
@@ -518,17 +518,17 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                     onClick={() => setLlmProvider('fable')}
                     className={`text-left rounded-xl p-4 border backdrop-blur-xl transition-all ${
                       llmProvider === 'fable'
-                        ? 'bg-[#D4A853]/15 border-[#D4A853]/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_0_24px_-6px_rgba(212,168,83,0.28)]'
-                        : 'bg-white/[0.035] border-white/10 hover:bg-white/[0.06] hover:border-white/20'
+                        ? 'bg-[#D4A853]/15 border-[#B47B1E]/70 dark:border-[#D4A853]/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_6px_20px_-6px_rgba(180,123,30,0.22)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_0_24px_-6px_rgba(212,168,83,0.28)]'
+                        : 'bg-slate-900/[0.025] dark:bg-white/[0.035] border-slate-900/10 dark:border-white/10 hover:bg-slate-900/[0.05] dark:hover:bg-white/[0.06] hover:border-slate-900/20 dark:hover:border-white/20'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-[#EDEFF5]">Fable</span>
-                      <span className="text-[10px] font-mono text-[#D4A853]">
+                      <span className="text-sm font-semibold text-[#111827] dark:text-[#EDEFF5]">Fable</span>
+                      <span className="text-[10px] font-mono font-semibold text-[#9A6712] dark:text-[#D4A853]">
                         {llmProvider === 'fable' ? 'ACTIVE' : 'CLOUD'}
                       </span>
                     </div>
-                    <p className="text-xs text-[#98A0B2] mt-1">
+                    <p className="text-xs text-slate-600 dark:text-[#98A0B2] mt-1">
                       Cloud-hosted Fable (e.g. Fable 5.2 / OpenAI-compatible endpoint).
                     </p>
                   </button>
@@ -538,17 +538,17 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                     onClick={() => setLlmProvider('ollama')}
                     className={`text-left rounded-xl p-4 border backdrop-blur-xl transition-all ${
                       llmProvider === 'ollama'
-                        ? 'bg-[#D4A853]/15 border-[#D4A853]/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_0_24px_-6px_rgba(212,168,83,0.28)]'
-                        : 'bg-white/[0.035] border-white/10 hover:bg-white/[0.06] hover:border-white/20'
+                        ? 'bg-[#D4A853]/15 border-[#B47B1E]/70 dark:border-[#D4A853]/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_6px_20px_-6px_rgba(180,123,30,0.22)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_0_24px_-6px_rgba(212,168,83,0.28)]'
+                        : 'bg-slate-900/[0.025] dark:bg-white/[0.035] border-slate-900/10 dark:border-white/10 hover:bg-slate-900/[0.05] dark:hover:bg-white/[0.06] hover:border-slate-900/20 dark:hover:border-white/20'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-[#EDEFF5]">Private LLM</span>
-                      <span className="text-[10px] font-mono text-[#D4A853]">
+                      <span className="text-sm font-semibold text-[#111827] dark:text-[#EDEFF5]">Private LLM</span>
+                      <span className="text-[10px] font-mono font-semibold text-[#9A6712] dark:text-[#D4A853]">
                         {llmProvider === 'ollama' ? 'ACTIVE' : 'OLLAMA'}
                       </span>
                     </div>
-                    <p className="text-xs text-[#98A0B2] mt-1">
+                    <p className="text-xs text-slate-600 dark:text-[#98A0B2] mt-1">
                       Ollama-hosted Qwen or local model running on your laptop.
                     </p>
                   </button>
@@ -556,9 +556,9 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
               </div>
 
               {llmProvider === 'gemini' ? (
-                <div className="bg-white/[0.035] backdrop-blur-xl border border-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-xl p-4 space-y-3">
+                <div className="bg-slate-900/[0.025] dark:bg-white/[0.035] backdrop-blur-xl border border-slate-900/10 dark:border-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <label className="block text-xs font-medium text-[#98A0B2]">
+                    <label className="block text-xs font-medium text-slate-600 dark:text-[#98A0B2]">
                       Gemini Model
                     </label>
                     <button
@@ -574,20 +574,20 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                   <select
                     value={geminiModel}
                     onChange={(e) => setGeminiModel(e.target.value)}
-                    className="w-full bg-white/[0.05] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#EDEFF5] outline-none"
+                    className="w-full bg-white/90 dark:bg-white/[0.05] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#111827] dark:text-[#EDEFF5] outline-none"
                   >
                     <option value="gemini-4-hydrogen">gemini-4-hydrogen (Fast Reasoning)</option>
                     <option value="gemini-4-neon">gemini-4-neon (Complex Synthesis)</option>
                     <option value="gemini-4-carbon">gemini-4-carbon (Deep Reasoning)</option>
                   </select>
-                  <p className="text-[11px] text-[#98A0B2]">
+                  <p className="text-[11px] text-slate-600 dark:text-[#98A0B2]">
                     Credentials are handled automatically by the server environment.
                   </p>
                 </div>
               ) : llmProvider === 'fable' ? (
-                <div className="bg-white/[0.035] backdrop-blur-xl border border-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-xl p-4 space-y-3">
+                <div className="bg-slate-900/[0.025] dark:bg-white/[0.035] backdrop-blur-xl border border-slate-900/10 dark:border-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-medium text-[#EDEFF5]">
+                    <span className="text-xs font-medium text-[#111827] dark:text-[#EDEFF5]">
                       Fable / Anthropic Endpoint
                     </span>
                     <button
@@ -601,7 +601,7 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                     </button>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-[#98A0B2] mb-1.5">
+                    <label className="block text-xs font-medium text-slate-600 dark:text-[#98A0B2] mb-1.5">
                       Fable Endpoint URL
                     </label>
                     <input
@@ -609,12 +609,12 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                       value={fableEndpointUrl}
                       onChange={(e) => setFableEndpointUrl(e.target.value)}
                       placeholder="https://api.anthropic.com/v1/messages"
-                      className="w-full bg-white/[0.045] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#EDEFF5] placeholder-[#6B7385] outline-none"
+                      className="w-full bg-white/90 dark:bg-white/[0.045] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#111827] dark:text-[#EDEFF5] placeholder-slate-400 dark:placeholder-[#6B7385] outline-none"
                     />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-[#98A0B2] mb-1.5">
+                      <label className="block text-xs font-medium text-slate-600 dark:text-[#98A0B2] mb-1.5">
                         Model ID (Your Endpoint&apos;s Model Name)
                       </label>
                       <input
@@ -622,11 +622,11 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                         value={fableModel}
                         onChange={(e) => setFableModel(e.target.value)}
                         placeholder="e.g., claude-sonnet-4-20250514"
-                        className="w-full bg-white/[0.045] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#EDEFF5] placeholder-[#6B7385] outline-none"
+                        className="w-full bg-white/90 dark:bg-white/[0.045] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#111827] dark:text-[#EDEFF5] placeholder-slate-400 dark:placeholder-[#6B7385] outline-none"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-[#98A0B2] mb-1.5">
+                      <label className="block text-xs font-medium text-slate-600 dark:text-[#98A0B2] mb-1.5">
                         API Key (x-api-key / Bearer)
                       </label>
                       <input
@@ -634,15 +634,15 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                         value={fableApiKey}
                         onChange={(e) => setFableApiKey(e.target.value)}
                         placeholder="sk-ant-... (or set in Secrets)"
-                        className="w-full bg-white/[0.045] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#EDEFF5] placeholder-[#6B7385] outline-none"
+                        className="w-full bg-white/90 dark:bg-white/[0.045] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs text-[#111827] dark:text-[#EDEFF5] placeholder-slate-400 dark:placeholder-[#6B7385] outline-none"
                       />
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="bg-white/[0.035] backdrop-blur-xl border border-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-xl p-4 space-y-3">
+                <div className="bg-slate-900/[0.025] dark:bg-white/[0.035] backdrop-blur-xl border border-slate-900/10 dark:border-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-xl p-4 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs font-medium text-[#EDEFF5]">
+                    <span className="text-xs font-medium text-[#111827] dark:text-[#EDEFF5]">
                       Private LLM · Ollama Hosted (Qwen / Local)
                     </span>
                     <div className="flex items-center gap-2">
@@ -650,10 +650,10 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                         type="button"
                         disabled={discoveringOllama || testingProvider !== null}
                         onClick={handleDiscoverOllamaModels}
-                        className="px-3 py-1.5 rounded-md border border-white/15 bg-white/[0.05] hover:bg-white/[0.1] disabled:opacity-50 text-[#EDEFF5] text-xs font-medium inline-flex items-center gap-1.5 transition-colors"
+                        className="px-3 py-1.5 rounded-md border border-slate-900/12 dark:border-white/15 bg-white/85 dark:bg-white/[0.05] hover:bg-slate-900/[0.05] dark:hover:bg-white/[0.1] disabled:opacity-50 text-[#111827] dark:text-[#EDEFF5] text-xs font-medium inline-flex items-center gap-1.5 transition-colors"
                       >
                         <RefreshCw
-                          className={`w-3.5 h-3.5 text-[#D4A853] ${
+                          className={`w-3.5 h-3.5 text-[#9A6712] dark:text-[#D4A853] ${
                             discoveringOllama ? 'animate-spin' : ''
                           }`}
                         />
@@ -679,7 +679,7 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-[#98A0B2] mb-1.5">
+                      <label className="block text-xs font-medium text-slate-600 dark:text-[#98A0B2] mb-1.5">
                         Ollama Base URL
                       </label>
                       <input
@@ -687,11 +687,11 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                         value={ollamaBaseUrl}
                         onChange={(e) => setOllamaBaseUrl(e.target.value)}
                         placeholder="http://localhost:11434"
-                        className="w-full bg-white/[0.045] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs font-mono text-[#EDEFF5] placeholder-[#6B7385] outline-none"
+                        className="w-full bg-white/90 dark:bg-white/[0.045] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs font-mono text-[#111827] dark:text-[#EDEFF5] placeholder-slate-400 dark:placeholder-[#6B7385] outline-none"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-[#98A0B2] mb-1.5">
+                      <label className="block text-xs font-medium text-slate-600 dark:text-[#98A0B2] mb-1.5">
                         Ollama Model Name (e.g., Qwen)
                       </label>
                       <input
@@ -699,14 +699,14 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                         value={ollamaModel}
                         onChange={(e) => setOllamaModel(e.target.value)}
                         placeholder="e.g., qwen2.5:14b or qwen3:8b"
-                        className="w-full bg-white/[0.045] backdrop-blur-md border border-white/12 focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs font-mono text-[#EDEFF5] placeholder-[#6B7385] outline-none"
+                        className="w-full bg-white/90 dark:bg-white/[0.045] backdrop-blur-md border border-slate-900/12 dark:border-white/12 focus:border-[#B47B1E] dark:focus:border-[#D4A853] rounded-lg px-3 py-2 text-xs font-mono text-[#111827] dark:text-[#EDEFF5] placeholder-slate-400 dark:placeholder-[#6B7385] outline-none"
                       />
                     </div>
                   </div>
 
                   {discoveredOllamaModels.length > 0 && (
                     <div className="space-y-1.5">
-                      <span className="block text-[11px] font-medium text-[#98A0B2]">
+                      <span className="block text-[11px] font-medium text-slate-600 dark:text-[#98A0B2]">
                         Discovered Local Models (Click to Select)
                       </span>
                       <div className="flex flex-wrap gap-1.5">
@@ -717,8 +717,8 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                             onClick={() => setOllamaModel(m)}
                             className={`px-2.5 py-1 rounded-md border text-[11px] font-mono transition-colors ${
                               ollamaModel.trim() === m
-                                ? 'border-[#D4A853]/80 bg-[#D4A853]/18 text-[#D4A853]'
-                                : 'border-white/12 bg-white/[0.04] text-[#C8CEDB] hover:border-white/25 hover:text-[#EDEFF5]'
+                                ? 'border-[#B47B1E]/80 dark:border-[#D4A853]/80 bg-[#D4A853]/18 text-[#9A6712] dark:text-[#D4A853]'
+                                : 'border-slate-900/12 dark:border-white/12 bg-white/80 dark:bg-white/[0.04] text-slate-700 dark:text-[#C8CEDB] hover:border-slate-900/25 dark:hover:border-white/25 hover:text-[#111827] dark:hover:text-[#EDEFF5]'
                             }`}
                           >
                             {m}
@@ -728,8 +728,8 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                     </div>
                   )}
 
-                  <p className="text-[11px] text-[#98A0B2] leading-relaxed">
-                    Use <span className="font-mono text-[#EDEFF5]">http://localhost:11434</span> when running locally on your laptop, or an HTTPS tunnel / Tailscale URL if connecting from a remote cloud preview.
+                  <p className="text-[11px] text-slate-600 dark:text-[#98A0B2] leading-relaxed">
+                    Use <span className="font-mono font-medium text-[#111827] dark:text-[#EDEFF5]">http://localhost:11434</span> when running locally on your laptop, or an HTTPS tunnel / Tailscale URL if connecting from a remote cloud preview.
                   </p>
                 </div>
               )}
@@ -738,12 +738,12 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
                 <div
                   className={`rounded-xl border backdrop-blur-md px-4 py-3 text-xs flex items-start gap-2 ${
                     adapterTestResult.ok
-                      ? 'border-emerald-400/35 bg-emerald-500/12 text-emerald-200'
-                      : 'border-red-400/35 bg-red-500/12 text-red-200'
+                      ? 'border-emerald-300 dark:border-emerald-400/35 bg-emerald-50 dark:bg-emerald-500/12 text-emerald-800 dark:text-emerald-200'
+                      : 'border-red-300 dark:border-red-400/35 bg-red-50 dark:bg-red-500/12 text-red-700 dark:text-red-200'
                   }`}
                 >
                   {adapterTestResult.ok && (
-                    <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
+                    <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" />
                   )}
                   <div className="space-y-0.5">
                     <div className="font-semibold uppercase tracking-wider text-[11px]">
@@ -760,15 +760,15 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
             </div>
           )}
 
-          {fetchError && <p className="text-xs text-red-300">{fetchError}</p>}
+          {fetchError && <p className="text-xs text-red-600 dark:text-red-300">{fetchError}</p>}
 
-          <div className="flex items-center justify-between gap-2 pt-3 border-t border-white/10">
+          <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-900/10 dark:border-white/10">
             <div>
               {mode === 'edit' && profile && onDelete && (
                 <button
                   type="button"
                   onClick={handleDeleteClick}
-                  className="px-3.5 py-2 text-xs font-medium text-red-300 hover:text-red-200 bg-red-500/10 hover:bg-red-500/20 border border-red-400/30 rounded-lg transition-colors flex items-center gap-1.5 backdrop-blur-md"
+                  className="px-3.5 py-2 text-xs font-medium text-red-700 dark:text-red-300 hover:text-red-800 dark:hover:text-red-200 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 border border-red-300 dark:border-red-400/30 rounded-lg transition-colors flex items-center gap-1.5 backdrop-blur-md"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Delete Profile ({profile.personId})</span>
@@ -779,7 +779,7 @@ export const NatalConfigModal: React.FC<NatalConfigModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-xs font-medium text-[#C8CEDB] hover:text-[#EDEFF5] bg-white/[0.04] hover:bg-white/[0.08] border border-white/12 rounded-lg transition-colors"
+                className="px-4 py-2 text-xs font-medium text-slate-700 dark:text-[#C8CEDB] hover:text-[#111827] dark:hover:text-[#EDEFF5] bg-slate-900/[0.04] dark:bg-white/[0.04] hover:bg-slate-900/[0.08] dark:hover:bg-white/[0.08] border border-slate-900/12 dark:border-white/12 rounded-lg transition-colors"
               >
                 Cancel
               </button>
